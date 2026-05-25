@@ -1,0 +1,13 @@
+[project]
+name = "sentra-ai"
+version = "0.1.0"
+description = "Automated cloud security scanning and remediation tool for Terraform"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-hcl2>=0.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
