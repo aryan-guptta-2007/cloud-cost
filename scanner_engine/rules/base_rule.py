@@ -16,6 +16,7 @@ class BaseRule(ABC):
         description: str,
         recommended_fix: str,
         category: Category,
+        version: str = "1.0.0"
     ):
         self.id = id
         self.severity = severity
@@ -23,6 +24,7 @@ class BaseRule(ABC):
         self.description = description
         self.recommended_fix = recommended_fix
         self.category = category
+        self.version = version
 
     @abstractmethod
     def check(self, parsed_data: dict, file_path: str) -> List[Finding]:

@@ -62,7 +62,6 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE / Editor config
 .idea/
 .vscode/
 *.suo
@@ -72,3 +71,8 @@ venv.bak/
 *.sw?
 .DS_Store
 Thumbs.db
+
+# SQLite local database files (runtime artifacts, never committed)
+*.db
+*.db-shm
+*.db-wal

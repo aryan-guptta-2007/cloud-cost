@@ -23,6 +23,7 @@ def test_webhook_pull_request_flow(mock_provider_class):
     3. Fetches only *.tf/*.tfvars files from provider.
     4. Downloads raw contents in-memory.
     5. Formats and posts a consolidated review comment to the PR.
+    6. Creates and updates check run status indicating scan results.
     """
     # 1. Setup Mock Provider instance
     mock_provider = AsyncMock()
@@ -54,6 +55,10 @@ def test_webhook_pull_request_flow(mock_provider_class):
         return ""
         
     mock_provider.get_file_content.side_effect = mock_get_content
+    
+    # Mock Check Runs API return values
+    mock_provider.create_check_run.return_value = 112233
+    mock_provider.update_check_run.return_value = None
 
     # 2. Trigger webhook endpoint with mock payload
     payload = {
@@ -71,6 +76,7 @@ def test_webhook_pull_request_flow(mock_provider_class):
         "X-GitHub-Delivery": "mock-delivery-id-777"
     }
 
+    # Bypasses signature verification by default since GITHUB_WEBHOOK_SECRET is empty
     response = client.post("/webhook", json=payload, headers=headers)
 
     # 3. Assert Response and Background Processing
@@ -79,6 +85,9 @@ def test_webhook_pull_request_flow(mock_provider_class):
 
     # Validate that GitHubProvider was initialized with correct installation ID
     mock_provider_class.assert_called_once_with(998877)
+
+    # Validate Check Runs were initialized
+    mock_provider.create_check_run.assert_called_once_with("test-owner/test-repo", "mocked-git-head-sha")
 
     # Validate that changed files list was fetched
     mock_provider.get_pr_files.assert_called_once_with("test-owner/test-repo", 42, "mocked-git-head-sha")
@@ -108,3 +117,13 @@ def test_webhook_pull_request_flow(mock_provider_class):
     assert "storage_encrypted = true" in comment_body
     assert "Execution Metrics" in comment_body
     assert "Trace ID" in comment_body
+
+    # Validate Check Runs were updated with scan conclusions
+    mock_provider.update_check_run.assert_called_once()
+    check_update_args = mock_provider.update_check_run.call_args[0]
+    assert check_update_args[0] == "test-owner/test-repo"
+    assert check_update_args[1] == 112233
+    assert check_update_args[2] == "failure"  # Since Critical/High findings are present
+    assert "SentraAI detected 2 security findings" in check_update_args[3]
+    assert "Critical: 1" in check_update_args[3]
+    assert "High: 1" in check_update_args[3]

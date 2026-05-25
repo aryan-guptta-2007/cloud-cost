@@ -35,6 +35,16 @@ class GitProvider(ABC):
         """Consolidates findings by posting or editing in-place PR review comments."""
         pass
 
+    @abstractmethod
+    async def create_check_run(self, repo_full_name: str, sha: str) -> Optional[int]:
+        """Creates a pending check run on a commit. Returns check run ID."""
+        pass
+
+    @abstractmethod
+    async def update_check_run(self, repo_full_name: str, check_run_id: int, conclusion: str, summary: str) -> None:
+        """Updates the status and output of an existing check run."""
+        pass
+
 
 class GitHubProvider(GitProvider):
     """GitHub specific API implementation using App authentication and token caching."""
@@ -74,8 +84,7 @@ class GitHubProvider(GitProvider):
             data = response.json()
             self._token = data["token"]
             
-            # Format expires_at timestamp from GitHub response (e.g. '2026-05-25T15:20:00Z')
-            # Fallback to standard 1 hour validity
+            # Default to 1 hour validity
             self._token_expires_at = now + 3600
             return self._token
 
@@ -118,7 +127,7 @@ class GitHubProvider(GitProvider):
         token = await self._get_access_token()
         headers = {
             "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3.raw"  # Force raw text download
+            "Accept": "application/vnd.github.v3.raw"
         }
         url = f"https://api.github.com/repos/{repo_full_name}/contents/{path}"
         params = {"ref": sha}
@@ -134,7 +143,6 @@ class GitHubProvider(GitProvider):
             "Accept": "application/vnd.github.v3+json"
         }
         
-        # 1. Search for previous comments by looking for the comment signature
         list_url = f"https://api.github.com/repos/{repo_full_name}/issues/{pr_number}/comments"
         async with httpx.AsyncClient() as client:
             response = await self._request_with_retry(client, "GET", list_url, headers=headers)
@@ -147,7 +155,6 @@ class GitHubProvider(GitProvider):
                     existing_comment_id = comment["id"]
                     break
 
-            # 2. Update existing comment or create a new one
             if existing_comment_id:
                 logger.info(f"Updating existing comment ID: {existing_comment_id}")
                 update_url = f"https://api.github.com/repos/{repo_full_name}/issues/comments/{existing_comment_id}"
@@ -159,3 +166,48 @@ class GitHubProvider(GitProvider):
                 await self._request_with_retry(
                     client, "POST", list_url, headers=headers, json={"body": comment_body}
                 )
+
+    async def create_check_run(self, repo_full_name: str, sha: str) -> Optional[int]:
+        try:
+            token = await self._get_access_token()
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            url = f"https://api.github.com/repos/{repo_full_name}/check-runs"
+            payload = {
+                "name": "SentraAI Security Check",
+                "head_sha": sha,
+                "status": "in_progress",
+                "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            
+            async with httpx.AsyncClient() as client:
+                response = await self._request_with_retry(client, "POST", url, headers=headers, json=payload)
+                return response.json().get("id")
+        except Exception as e:
+            logger.warning(f"Failed to create GitHub Check Run: {str(e)}. Proceeding without check runs.")
+            return None
+
+    async def update_check_run(self, repo_full_name: str, check_run_id: int, conclusion: str, summary: str) -> None:
+        try:
+            token = await self._get_access_token()
+            headers = {
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            url = f"https://api.github.com/repos/{repo_full_name}/check-runs/{check_run_id}"
+            payload = {
+                "status": "completed",
+                "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "conclusion": conclusion,
+                "output": {
+                    "title": "SentraAI Security Review Completed",
+                    "summary": summary
+                }
+            }
+            
+            async with httpx.AsyncClient() as client:
+                await self._request_with_retry(client, "PATCH", url, headers=headers, json=payload)
+        except Exception as e:
+            logger.warning(f"Failed to update GitHub Check Run ID {check_run_id}: {str(e)}")

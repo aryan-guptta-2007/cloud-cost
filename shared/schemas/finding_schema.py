@@ -10,6 +10,7 @@ class Finding:
     title: str
     description: str
     recommended_fix: str
+    rule_version: str = "1.0.0"  # Version metadata of the scanner rule
     resource_type: Optional[str] = None
     resource_name: Optional[str] = None
     line_number: Optional[int] = None

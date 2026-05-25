@@ -6,9 +6,11 @@ import logging
 from typing import List, Dict, Any, Tuple
 from shared.schemas.finding_schema import Finding
 from scanner_engine.parsers.tf_parser import parse_tf_string, ParseError
+from scanner_engine.parsers.ignore_parser import parse_ignore_annotations
 from scanner_engine.rule_registry import registry
 from remediation_engine.remediation_registry import remediation_registry
 from backend.app.services.github_service import GitProvider
+from backend.app.database.telemetry_dao import save_scan_telemetry, save_suppression_audit
 from backend.app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS
 
 logger = logging.getLogger("sentra-ai")
@@ -18,14 +20,14 @@ async def scan_pr_files(
     repo_full_name: str,
     pr_number: int,
     sha: str
-) -> Tuple[str, str, List[Finding], Dict[str, float]]:
+) -> Tuple[str, str, List[Finding], List[Dict[str, Any]], Dict[str, float]]:
     """
     Coordinates scanning of changed files in a pull request.
-    Downloads files in-memory, performs security audits, runs in-memory remediations,
-    tracks performance metrics, and logs trace details using UUIDs.
+    Downloads files in-memory, parses ignore annotations, filters findings,
+    executes remediation in-memory, tracks performance metrics, and logs trace
+    details persistently to SQLite.
     
-    Returns a tuple of (scan_id, status, findings, metrics).
-    Status states: PENDING, RUNNING, COMPLETED, FAILED, PARTIAL.
+    Returns a tuple of (scan_id, status, active_findings, suppressed_findings, metrics).
     """
     scan_id = str(uuid.uuid4())
     start_time = time.time()
@@ -40,6 +42,7 @@ async def scan_pr_files(
     }
     
     findings: List[Finding] = []
+    suppressed_findings: List[Dict[str, Any]] = []
     status = "PENDING"
     
     try:
@@ -58,16 +61,20 @@ async def scan_pr_files(
             logger.info(f"[{scan_id}] No Terraform configuration files modified in this PR.")
             status = "COMPLETED"
             metrics["total_time"] = time.time() - start_time
-            return scan_id, status, findings, metrics
+            # Write empty telemetry log
+            save_scan_telemetry(scan_id, repo_full_name, pr_number, sha, status, 0, 0, 0.0, 0.0, 0.0, metrics["total_time"])
+            return scan_id, status, findings, suppressed_findings, metrics
 
         # 3. Enforce maximum PR file count limits
         if len(tf_files) > MAX_PR_FILES:
             logger.warning(f"[{scan_id}] PR contains {len(tf_files)} changed HCL files, exceeding safety limit of {MAX_PR_FILES}. Aborting scan.")
-            status = "FAILED"
+            status = "FAILED_EXCEEDED_LIMITS"
             metrics["total_time"] = time.time() - start_time
-            return scan_id, status, [], metrics
+            save_scan_telemetry(scan_id, repo_full_name, pr_number, sha, status, 0, 0, 0.0, 0.0, 0.0, metrics["total_time"])
+            return scan_id, status, [], [], metrics
 
         partial_failures = False
+        outcome_category = "COMPLETED"
         
         # 4. Scan files in-memory
         for file_meta in tf_files:
@@ -78,7 +85,7 @@ async def scan_pr_files(
                 elapsed = time.time() - start_time
                 if elapsed > SCAN_TIMEOUT_SECONDS:
                     logger.error(f"[{scan_id}] Scan timeout exceeded ({SCAN_TIMEOUT_SECONDS}s). Halting scanner execution.")
-                    status = "PARTIAL"
+                    outcome_category = "PARTIAL_TIMEOUT"
                     partial_failures = True
                     break
 
@@ -97,18 +104,41 @@ async def scan_pr_files(
                 parsed_data = parse_tf_string(file_content)
                 metrics["parse_time"] += time.time() - parse_start
                 
+                # Parse rule suppressions annotations (ignore comments)
+                ignore_map = parse_ignore_annotations(file_content)
+                
                 # Execute security rules
                 scan_start = time.time()
                 rules = registry.get_all_rules()
                 file_findings: List[Finding] = []
                 for rule in rules:
                     rule_findings = rule.check(parsed_data, filename)
+                    # Stamp rule version dynamically
+                    for f in rule_findings:
+                        f.rule_version = rule.version
                     file_findings.extend(rule_findings)
                 metrics["scan_time"] += time.time() - scan_start
                 
-                # Fetch remediations & diffs in-memory
+                # 5. Filter suppressed findings block-by-block
+                active_findings: List[Finding] = []
+                for f in file_findings:
+                    resource_key = f"{f.resource_type}.{f.resource_name}"
+                    if resource_key in ignore_map and f.rule_id in ignore_map[resource_key]:
+                        reason = ignore_map[resource_key][f.rule_id]
+                        suppressed_findings.append({
+                            "rule_id": f.rule_id,
+                            "resource": resource_key,
+                            "reason": reason,
+                            "severity": f.severity.value,
+                            "file_path": filename
+                        })
+                        logger.info(f"[{scan_id}] Suppressed finding {f.rule_id} for resource {resource_key} (Reason: {reason})")
+                    else:
+                        active_findings.append(f)
+                
+                # 6. Fetch remediations & diffs for active findings only
                 remediation_start = time.time()
-                for finding in file_findings:
+                for finding in active_findings:
                     if finding.resource_type and finding.resource_name:
                         remediation = remediation_registry.get_remediation_in_memory(
                             finding.rule_id,
@@ -125,22 +155,50 @@ async def scan_pr_files(
                             finding.explanation = remediation.get("explanation")
                 metrics["remediation_time"] += time.time() - remediation_start
                 
-                findings.extend(file_findings)
+                findings.extend(active_findings)
                 
+            except ParseError as pe:
+                logger.error(f"[{scan_id}] Parser error scanning file {filename}: {str(pe)}")
+                outcome_category = "PARTIAL_PARSE_ERROR"
+                partial_failures = True
+                continue
             except Exception as e:
                 logger.error(f"[{scan_id}] Error scanning file {filename}: {str(e)}")
                 partial_failures = True
                 continue
 
         # Determine final status
-        if status != "PARTIAL":
-            status = "PARTIAL" if partial_failures else "COMPLETED"
+        if outcome_category.startswith("PARTIAL") or partial_failures:
+            status = outcome_category if outcome_category.startswith("PARTIAL") else "PARTIAL"
+        else:
+            status = "COMPLETED"
             
     except Exception as e:
         logger.error(f"[{scan_id}] Critical failure in scan orchestrator: {str(e)}")
         status = "FAILED"
         
     metrics["total_time"] = time.time() - start_time
-    logger.info(f"[{scan_id}] Scan execution ended with status: {status}. Findings count: {len(findings)}. Total time: {metrics['total_time']:.4f}s")
     
-    return scan_id, status, findings, metrics
+    # 7. Write telemetry persistently
+    save_scan_telemetry(
+        scan_id=scan_id,
+        repo_name=repo_full_name,
+        pr_number=pr_number,
+        head_sha=sha,
+        status=status,
+        findings_count=len(findings),
+        suppressed_count=len(suppressed_findings),
+        parse_time=metrics["parse_time"],
+        scan_time=metrics["scan_time"],
+        remediation_time=metrics["remediation_time"],
+        total_time=metrics["total_time"]
+    )
+
+    # 8. Write per-rule suppression audit records for product intelligence telemetry
+    save_suppression_audit(
+        scan_id=scan_id,
+        repo_name=repo_full_name,
+        suppressed_findings=suppressed_findings
+    )
+
+    return scan_id, status, findings, suppressed_findings, metrics
