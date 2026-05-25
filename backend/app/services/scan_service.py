@@ -1,0 +1,146 @@
+import os
+import sys
+import uuid
+import time
+import logging
+from typing import List, Dict, Any, Tuple
+from shared.schemas.finding_schema import Finding
+from scanner_engine.parsers.tf_parser import parse_tf_string, ParseError
+from scanner_engine.rule_registry import registry
+from remediation_engine.remediation_registry import remediation_registry
+from backend.app.services.github_service import GitProvider
+from backend.app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS
+
+logger = logging.getLogger("sentra-ai")
+
+async def scan_pr_files(
+    git_provider: GitProvider,
+    repo_full_name: str,
+    pr_number: int,
+    sha: str
+) -> Tuple[str, str, List[Finding], Dict[str, float]]:
+    """
+    Coordinates scanning of changed files in a pull request.
+    Downloads files in-memory, performs security audits, runs in-memory remediations,
+    tracks performance metrics, and logs trace details using UUIDs.
+    
+    Returns a tuple of (scan_id, status, findings, metrics).
+    Status states: PENDING, RUNNING, COMPLETED, FAILED, PARTIAL.
+    """
+    scan_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    logger.info(f"[{scan_id}] Initializing scan for repository: {repo_full_name}, PR: #{pr_number}, Head SHA: {sha}")
+    
+    metrics = {
+        "parse_time": 0.0,
+        "scan_time": 0.0,
+        "remediation_time": 0.0,
+        "total_time": 0.0
+    }
+    
+    findings: List[Finding] = []
+    status = "PENDING"
+    
+    try:
+        status = "RUNNING"
+        # 1. Fetch files list from GitProvider
+        changed_files = await git_provider.get_pr_files(repo_full_name, pr_number, sha)
+        
+        # 2. Filter files for *.tf and *.tfvars extensions only
+        tf_files = [
+            f for f in changed_files 
+            if f.get("filename", "").endswith((".tf", ".tfvars"))
+            and f.get("status") != "removed"
+        ]
+        
+        if not tf_files:
+            logger.info(f"[{scan_id}] No Terraform configuration files modified in this PR.")
+            status = "COMPLETED"
+            metrics["total_time"] = time.time() - start_time
+            return scan_id, status, findings, metrics
+
+        # 3. Enforce maximum PR file count limits
+        if len(tf_files) > MAX_PR_FILES:
+            logger.warning(f"[{scan_id}] PR contains {len(tf_files)} changed HCL files, exceeding safety limit of {MAX_PR_FILES}. Aborting scan.")
+            status = "FAILED"
+            metrics["total_time"] = time.time() - start_time
+            return scan_id, status, [], metrics
+
+        partial_failures = False
+        
+        # 4. Scan files in-memory
+        for file_meta in tf_files:
+            filename = file_meta.get("filename", "")
+            
+            try:
+                # Enforce scan timeouts
+                elapsed = time.time() - start_time
+                if elapsed > SCAN_TIMEOUT_SECONDS:
+                    logger.error(f"[{scan_id}] Scan timeout exceeded ({SCAN_TIMEOUT_SECONDS}s). Halting scanner execution.")
+                    status = "PARTIAL"
+                    partial_failures = True
+                    break
+
+                logger.info(f"[{scan_id}] Downloading file content in-memory: {filename}")
+                file_content = await git_provider.get_file_content(repo_full_name, filename, sha)
+                
+                # Enforce file size limit
+                content_bytes = file_content.encode("utf-8")
+                if len(content_bytes) > MAX_FILE_SIZE_BYTES:
+                    logger.warning(f"[{scan_id}] File {filename} size ({len(content_bytes)} bytes) exceeds max limit of {MAX_FILE_SIZE_BYTES} bytes. Skipping.")
+                    partial_failures = True
+                    continue
+
+                # Parse HCL string
+                parse_start = time.time()
+                parsed_data = parse_tf_string(file_content)
+                metrics["parse_time"] += time.time() - parse_start
+                
+                # Execute security rules
+                scan_start = time.time()
+                rules = registry.get_all_rules()
+                file_findings: List[Finding] = []
+                for rule in rules:
+                    rule_findings = rule.check(parsed_data, filename)
+                    file_findings.extend(rule_findings)
+                metrics["scan_time"] += time.time() - scan_start
+                
+                # Fetch remediations & diffs in-memory
+                remediation_start = time.time()
+                for finding in file_findings:
+                    if finding.resource_type and finding.resource_name:
+                        remediation = remediation_registry.get_remediation_in_memory(
+                            finding.rule_id,
+                            filename,
+                            finding.resource_type,
+                            finding.resource_name,
+                            file_content
+                        )
+                        if remediation:
+                            finding.remediation_type = remediation.get("remediation_type")
+                            finding.remediation_mode = remediation.get("remediation_mode")
+                            finding.fix_confidence = remediation.get("fix_confidence", 1.0)
+                            finding.remediation_diff = remediation.get("remediation_diff")
+                            finding.explanation = remediation.get("explanation")
+                metrics["remediation_time"] += time.time() - remediation_start
+                
+                findings.extend(file_findings)
+                
+            except Exception as e:
+                logger.error(f"[{scan_id}] Error scanning file {filename}: {str(e)}")
+                partial_failures = True
+                continue
+
+        # Determine final status
+        if status != "PARTIAL":
+            status = "PARTIAL" if partial_failures else "COMPLETED"
+            
+    except Exception as e:
+        logger.error(f"[{scan_id}] Critical failure in scan orchestrator: {str(e)}")
+        status = "FAILED"
+        
+    metrics["total_time"] = time.time() - start_time
+    logger.info(f"[{scan_id}] Scan execution ended with status: {status}. Findings count: {len(findings)}. Total time: {metrics['total_time']:.4f}s")
+    
+    return scan_id, status, findings, metrics

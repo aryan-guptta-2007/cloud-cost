@@ -44,19 +44,11 @@ class BaseFixer:
                 break
         return start_line, end_line
 
-    def apply_fix(self, file_path: str, resource_type: str, resource_name: str) -> str:
+    def apply_fix_content(self, original_content: str, resource_type: str, resource_name: str) -> str:
         """
-        Loads the target file, modifies the block in-memory, validates HCL integrity,
-        and returns the modified content string.
+        Applies remediation directly to HCL content in-memory and validates HCL syntax.
         """
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Target file not found: {file_path}")
-            
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-            
-        # Split but preserve newlines
-        lines = content.splitlines(keepends=True)
+        lines = original_content.splitlines(keepends=True)
         start, end = self.get_resource_block(lines, resource_type, resource_name)
         if start == -1 or end == -1:
             raise ValueError(f"Could not locate resource block for {resource_type}.{resource_name}")
@@ -70,6 +62,19 @@ class BaseFixer:
             raise ValueError(f"Generated remediation has invalid syntax: {err_msg}")
 
         return modified_content
+
+    def apply_fix(self, file_path: str, resource_type: str, resource_name: str) -> str:
+        """
+        Loads the target file, modifies the block in-memory, validates HCL integrity,
+        and returns the modified content string.
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Target file not found: {file_path}")
+            
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        return self.apply_fix_content(content, resource_type, resource_name)
 
     def _modify_block(self, lines: List[str], start: int, end: int) -> List[str]:
         """To be implemented by subclasses."""

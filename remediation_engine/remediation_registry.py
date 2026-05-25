@@ -56,10 +56,10 @@ class RemediationRegistry:
             )
         }
 
-    def get_remediation(self, rule_id: str, file_path: str, resource_type: str, resource_name: str) -> Dict[str, Any]:
+    def get_remediation_in_memory(self, rule_id: str, file_path: str, resource_type: str, resource_name: str, original_content: str) -> Dict[str, Any]:
         """
-        Orchestrates remediation calculation for a rule finding.
-        Loads file, applies fixer in-memory, validates HCL, generates unified diff,
+        Orchestrates remediation calculation entirely in memory.
+        Applies fixer to original_content, validates, generates unified diff,
         and returns detailed remediation metadata.
         """
         metadata = self._registry.get(rule_id)
@@ -71,12 +71,8 @@ class RemediationRegistry:
         validation_status = "PENDING"
 
         try:
-            # Read original file contents
-            with open(file_path, "r", encoding="utf-8") as f:
-                original_content = f.read()
-
             # Execute dry-run fix in memory
-            modified_content = metadata.fixer.apply_fix(file_path, resource_type, resource_name)
+            modified_content = metadata.fixer.apply_fix_content(original_content, resource_type, resource_name)
             
             # Generate unified patch
             diff_str = generate_unified_diff(original_content, modified_content, file_path)
@@ -92,6 +88,19 @@ class RemediationRegistry:
             "remediation_diff": diff_str,
             "validation_status": validation_status
         }
+
+    def get_remediation(self, rule_id: str, file_path: str, resource_type: str, resource_name: str) -> Dict[str, Any]:
+        """
+        Loads the file from disk and delegates to get_remediation_in_memory.
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                original_content = f.read()
+            return self.get_remediation_in_memory(rule_id, file_path, resource_type, resource_name, original_content)
+        except Exception as e:
+            return {
+                "validation_status": f"FAILED: {str(e)}"
+            }
 
 # Global registry instance
 remediation_registry = RemediationRegistry()

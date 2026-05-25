@@ -78,3 +78,16 @@ def normalize_val(val):
         if val.startswith('"') and val.endswith('"'):
             return val[1:-1]
     return val
+
+def parse_tf_string(content: str) -> Dict[str, Any]:
+    """
+    Parses an in-memory Terraform configuration string.
+    Normalizes the parsed HCL AST.
+    """
+    import io
+    try:
+        data = hcl2.load(io.StringIO(content))
+        return normalize_tf_data(data)
+    except Exception as e:
+        raise ParseError(f"Failed to parse Terraform string: {str(e)}")
+
