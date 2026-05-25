@@ -29,7 +29,6 @@ class AwsDbUnencryptedRule(BaseRule):
             
             storage_encrypted = config.get("storage_encrypted")
             
-            # Default behavior in AWS RDS is unencrypted storage if not specified (None or False)
             if storage_encrypted is False or storage_encrypted is None:
                 snippet = "storage_encrypted = false" if storage_encrypted is False else "(storage_encrypted attribute missing)"
                 findings.append(
@@ -40,6 +39,8 @@ class AwsDbUnencryptedRule(BaseRule):
                         title=self.title,
                         description=f"RDS instance '{name}' does not have storage encryption enabled.",
                         recommended_fix=self.recommended_fix,
+                        resource_type="aws_db_instance",
+                        resource_name=name,
                         code_snippet=snippet,
                         confidence=1.0
                     )

@@ -65,6 +65,8 @@ class AwsSgOpenRule(BaseRule):
                             title=self.title,
                             description=f"Security Group '{sg_name}' allows wide-open ingress on sensitive port(s) {from_port}-{to_port}.",
                             recommended_fix=self.recommended_fix,
+                            resource_type="aws_security_group",
+                            resource_name=sg_name,
                             code_snippet=f"cidr_blocks = {cidr_blocks}",
                             confidence=1.0
                         )
@@ -92,6 +94,8 @@ class AwsSgOpenRule(BaseRule):
                         title=self.title,
                         description=f"Security Group Rule '{rule_name}' allows wide-open ingress on sensitive port(s) {from_port}-{to_port}.",
                         recommended_fix=self.recommended_fix,
+                        resource_type="aws_security_group_rule",
+                        resource_name=rule_name,
                         code_snippet=f"cidr_blocks = {cidr_blocks}",
                         confidence=1.0
                     )

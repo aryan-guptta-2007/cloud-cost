@@ -1,0 +1,90 @@
+[
+  {
+    "rule_id": "AWS_DB_UNENCRYPTED",
+    "file_path": "E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf",
+    "severity": "HIGH",
+    "title": "Database Storage Encryption Disabled",
+    "description": "RDS instance 'insecure_db' does not have storage encryption enabled.",
+    "recommended_fix": "Set 'storage_encrypted = true' in the aws_db_instance resource block.",
+    "resource_type": "aws_db_instance",
+    "resource_name": "insecure_db",
+    "line_number": null,
+    "code_snippet": "storage_encrypted = false",
+    "confidence": 1.0,
+    "remediation_type": "AUTO_FIX",
+    "remediation_diff": "--- a/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n+++ b/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n@@ -45,6 +45,6 @@\n   db_name             = \"insecuredb\"\n   username            = \"postgres\"\n   password            = \"SuperSecretPass123\"\n-  storage_encrypted   = false\n+  storage_encrypted = true\n   skip_final_snapshot = true\n }\n",
+    "remediation_mode": "SAFE",
+    "fix_confidence": 1.0,
+    "explanation": {
+      "risk_summary": "The RDS database instance storage encryption is disabled.",
+      "why_it_matters": "Data stored on unencrypted RDS instances (including underlying volumes, backups, and transaction logs) resides in plain text. If database snapshots are leaked or access keys are compromised, the raw data can be extracted directly.",
+      "recommended_action": "Set the database 'storage_encrypted' parameter to true."
+    }
+  },
+  {
+    "rule_id": "AWS_IAM_WILDCARD",
+    "file_path": "E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf",
+    "severity": "CRITICAL",
+    "title": "IAM Wildcard Statement Allowed",
+    "description": "IAM statement allows unrestricted access. (Action Wildcard: True, Resource Wildcard: True)",
+    "recommended_fix": "Restrict Action list and Resource scopes to minimum required parameters.",
+    "resource_type": "aws_iam_policy",
+    "resource_name": "insecure_policy",
+    "line_number": null,
+    "code_snippet": "{\"Effect\": \"Allow\", \"Action\": \"*\", \"Resource\": \"*\"}",
+    "confidence": 1.0,
+    "remediation_type": "MANUAL_REVIEW",
+    "remediation_diff": "--- a/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n+++ b/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n@@ -28,7 +28,7 @@\n   \"Statement\": [\n     {\n       \"Effect\": \"Allow\",\n-      \"Action\": \"*\",\n+      \"Action\": [\"s3:GetObject\", \"s3:ListBucket\"],\n       \"Resource\": \"*\"\n     }\n   ]\n",
+    "remediation_mode": "SUGGESTIVE",
+    "fix_confidence": 0.6,
+    "explanation": {
+      "risk_summary": "An IAM policy allows wildcard action '*' or resource '*' permissions with an 'Allow' effect.",
+      "why_it_matters": "Unrestricted actions violate the principle of least privilege. If the credentials associated with this role or user are compromised, an attacker can gain full admin rights over your cloud resources.",
+      "recommended_action": "Refine the policy by specifying explicit permissions (e.g. s3:GetObject) and target resource ARNs instead of '*'"
+    }
+  },
+  {
+    "rule_id": "AWS_S3_PUBLIC",
+    "file_path": "E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf",
+    "severity": "CRITICAL",
+    "title": "Public S3 Bucket Detected",
+    "description": "The S3 bucket is configured with a public access ACL, exposing its objects to the public internet.",
+    "recommended_fix": "Change the S3 bucket ACL to 'private' or remove the public ACL attribute.",
+    "resource_type": "aws_s3_bucket",
+    "resource_name": "insecure_bucket",
+    "line_number": null,
+    "code_snippet": "acl = \"public-read\"",
+    "confidence": 1.0,
+    "remediation_type": "AUTO_FIX",
+    "remediation_diff": "--- a/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n+++ b/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n@@ -1,7 +1,7 @@\n # Insecure S3 Bucket (triggers AWS_S3_PUBLIC)\n resource \"aws_s3_bucket\" \"insecure_bucket\" {\n   bucket = \"sentra-insecure-data-leak\"\n-  acl    = \"public-read\"\n+  acl = \"private\"\n }\n \n # Open Security Group (triggers AWS_SG_OPEN)\n",
+    "remediation_mode": "SAFE",
+    "fix_confidence": 1.0,
+    "explanation": {
+      "risk_summary": "S3 bucket configuration permits public read-access.",
+      "why_it_matters": "Publicly accessible buckets allow anyone on the internet to list and download files. This frequently leads to severe data leaks, exposing client records, sensitive code, or database backups.",
+      "recommended_action": "Modify the S3 bucket ACL to 'private' and ensure that S3 Public Access Blocks are enabled."
+    }
+  },
+  {
+    "rule_id": "AWS_SG_OPEN",
+    "file_path": "E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf",
+    "severity": "HIGH",
+    "title": "Unrestricted Sensitive Ingress Allowed",
+    "description": "Security Group 'insecure_sg' allows wide-open ingress on sensitive port(s) 22-22.",
+    "recommended_fix": "Restrict cidr_blocks to specific IP ranges or secure Bastion hosts.",
+    "resource_type": "aws_security_group",
+    "resource_name": "insecure_sg",
+    "line_number": null,
+    "code_snippet": "cidr_blocks = 0.0.0.0/0",
+    "confidence": 1.0,
+    "remediation_type": "AUTO_FIX",
+    "remediation_diff": "--- a/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n+++ b/E:\\Cloud Cost + Security Analyzer\\sentra-ai\\examples\\insecure\\insecure.tf\n@@ -13,7 +13,7 @@\n     from_port   = 22\n     to_port     = 22\n     protocol    = \"tcp\"\n-    cidr_blocks = [\"0.0.0.0/0\"]\n+    cidr_blocks = [\"YOUR_TRUSTED_IP_RANGE\"]\n   }\n }\n \n",
+    "remediation_mode": "SAFE",
+    "fix_confidence": 0.9,
+    "explanation": {
+      "risk_summary": "Security group ingress rules allow wide-open ingress (0.0.0.0/0) on sensitive ports.",
+      "why_it_matters": "Exposing ports like SSH (22), RDP (3389), or database endpoints (Postgres/MySQL) to the public internet makes them targets for constant automated scanning, brute-force attacks, and exploitation.",
+      "recommended_action": "Restrict the CIDR blocks to specific trusted IP ranges (e.g., your office/VPN range) or require a bastion host."
+    }
+  }
+]

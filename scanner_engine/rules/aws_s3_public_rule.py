@@ -36,6 +36,8 @@ class AwsS3PublicRule(BaseRule):
                         title=self.title,
                         description=self.description,
                         recommended_fix=self.recommended_fix,
+                        resource_type="aws_s3_bucket",
+                        resource_name=name,
                         code_snippet=f'acl = "{acl}"',
                         confidence=1.0
                     )
