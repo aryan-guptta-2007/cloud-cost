@@ -85,6 +85,42 @@ def run_migrations():
             conn.execute("INSERT INTO schema_migrations (version) VALUES (2)")
             conn.commit()
             logger.info("Migration version 2 applied successfully.")
+
+        # Migration 3: autofix_prs table — tracks every auto-fix PR SentraAI creates
+        if current_version < 3:
+            logger.info("Applying database migration version 3...")
+            conn.execute("""
+                CREATE TABLE autofix_prs (
+                    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scan_id              TEXT NOT NULL,
+                    repo_name            TEXT NOT NULL,
+                    rule_id              TEXT NOT NULL,
+                    file_path            TEXT NOT NULL,
+                    branch_name          TEXT NOT NULL,
+                    pr_url               TEXT,
+                    pr_number            INTEGER,
+                    pr_fingerprint       TEXT,         -- SHA256 of rule+file+fix for dedup
+                    source_content_hash  TEXT,         -- SHA256 of original vulnerable content
+                    fix_safety_tier      TEXT,         -- SAFE / REVIEW_REQUIRED / EXPERIMENTAL / NONE
+                    status               TEXT NOT NULL, -- CREATED / DUPLICATE_SKIPPED / FAILED / MERGED / CLOSED / STALE / COOLDOWN_SKIPPED
+                    failure_reason       TEXT,         -- Populated on FAILED status
+                    created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # Index for cooldown queries: find recent PRs for same repo+rule+file within 24h
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_autofix_prs_cooldown
+                ON autofix_prs(repo_name, rule_id, file_path, created_at)
+            """)
+            # Index for fingerprint deduplication lookups
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_autofix_prs_fingerprint
+                ON autofix_prs(pr_fingerprint)
+            """)
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (3)")
+            conn.commit()
+            logger.info("Migration version 3 applied successfully.")
+
             
         # Run retention limit cleanups (30 days retention policy)
         clean_retention_data(conn)

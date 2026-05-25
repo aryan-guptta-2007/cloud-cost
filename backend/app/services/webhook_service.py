@@ -3,6 +3,7 @@ from typing import Dict, Any
 from backend.app.services.github_service import GitHubProvider
 from backend.app.services.scan_service import scan_pr_files
 from backend.app.services.comment_service import build_pr_comment_body
+from backend.app.services.autofix_service import run_autofix_workflows
 from backend.app.database.telemetry_dao import register_delivery_id
 
 logger = logging.getLogger("sentra-ai")
@@ -99,3 +100,19 @@ async def process_pull_request_webhook(delivery_id: str, payload: Dict[str, Any]
             summary = "SentraAI scan failed due to a system execution error."
 
         await github_provider.update_check_run(repo_full_name, check_run_id, conclusion, summary)
+
+    # 7. Run autofix PR workflows for eligible findings (isolated — never blocks scan delivery)
+    try:
+        autofix_results = await run_autofix_workflows(
+            git_provider=github_provider,
+            repo_full_name=repo_full_name,
+            base_sha=sha,
+            scan_id=scan_id,
+            original_pr_number=pr_number,
+            findings=findings
+        )
+        created_prs = sum(1 for r in autofix_results if r.get("status") == "CREATED")
+        if created_prs > 0:
+            logger.info(f"[{scan_id}] Autofix: {created_prs} remediation PR(s) opened for {repo_full_name} PR #{pr_number}.")
+    except Exception as e:
+        logger.error(f"[{scan_id}] Autofix workflow failed (non-critical): {str(e)}")

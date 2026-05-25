@@ -11,6 +11,7 @@ from scanner_engine.rule_registry import registry
 from remediation_engine.remediation_registry import remediation_registry
 from backend.app.services.github_service import GitProvider
 from backend.app.database.telemetry_dao import save_scan_telemetry, save_suppression_audit
+from remediation_engine.autofix_policy import get_autofix_policy
 from backend.app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS
 
 logger = logging.getLogger("sentra-ai")
@@ -153,6 +154,12 @@ async def scan_pr_files(
                             finding.fix_confidence = remediation.get("fix_confidence", 1.0)
                             finding.remediation_diff = remediation.get("remediation_diff")
                             finding.explanation = remediation.get("explanation")
+
+                        # Stamp autofix policy fields from the centralized policy matrix
+                        autofix_policy = get_autofix_policy(finding.rule_id)
+                        finding.safe_for_autofix = autofix_policy.safe_for_autofix
+                        finding.requires_human_review = autofix_policy.requires_human_review
+                        finding.fix_safety_tier = autofix_policy.fix_safety_tier
                 metrics["remediation_time"] += time.time() - remediation_start
                 
                 findings.extend(active_findings)

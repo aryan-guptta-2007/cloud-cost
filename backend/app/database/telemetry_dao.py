@@ -1,6 +1,6 @@
 import sqlite3
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from backend.app.database.db_client import get_connection
 
 logger = logging.getLogger("sentra-ai")
@@ -100,3 +100,85 @@ def save_suppression_audit(
         logger.error(f"[{scan_id}] Failed to write suppression audit records: {str(e)}")
     finally:
         conn.close()
+
+
+def save_autofix_pr_record(
+    scan_id: str,
+    repo_name: str,
+    rule_id: str,
+    file_path: str,
+    branch_name: str,
+    fix_safety_tier: str,
+    status: str,
+    pr_url: Optional[str] = None,
+    pr_number: Optional[int] = None,
+    pr_fingerprint: Optional[str] = None,
+    source_content_hash: Optional[str] = None,
+    failure_reason: Optional[str] = None
+) -> None:
+    """
+    Records the outcome of an autofix PR attempt in the autofix_prs table.
+
+    Status values:
+    - CREATED: PR was opened successfully on GitHub
+    - DUPLICATE_SKIPPED: An open PR for the same branch already exists
+    - COOLDOWN_SKIPPED: A PR was created for this rule+file within the last 24 hours
+    - FAILED: PR creation failed due to a GitHub API or internal error
+    - MERGED: (Set externally via webhook) PR was merged
+    - CLOSED: (Set externally via webhook) PR was closed without merging
+    - STALE: (Set externally via cron/cleanup) PR is open but source file changed
+    """
+    conn = get_connection()
+    try:
+        conn.execute("""
+            INSERT INTO autofix_prs (
+                scan_id, repo_name, rule_id, file_path, branch_name,
+                pr_url, pr_number, pr_fingerprint, source_content_hash,
+                fix_safety_tier, status, failure_reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            scan_id, repo_name, rule_id, file_path, branch_name,
+            pr_url, pr_number, pr_fingerprint, source_content_hash,
+            fix_safety_tier, status, failure_reason
+        ))
+        conn.commit()
+        logger.info(
+            f"[{scan_id}] Autofix PR record written: rule={rule_id} file={file_path} "
+            f"status={status} branch={branch_name}"
+        )
+    except Exception as e:
+        logger.error(f"[{scan_id}] Failed to write autofix PR record: {str(e)}")
+    finally:
+        conn.close()
+
+
+def check_autofix_cooldown(repo_name: str, rule_id: str, file_path: str) -> bool:
+    """
+    Checks if an autofix PR has already been created for the same repo+rule+file
+    within the last 24 hours (cooldown window).
+
+    Returns True if within cooldown (should skip), False if safe to proceed.
+
+    Cooldown applies to CREATED and COOLDOWN_SKIPPED statuses only.
+    FAILED and DUPLICATE_SKIPPED do not trigger the cooldown.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) FROM autofix_prs
+            WHERE repo_name = ?
+              AND rule_id = ?
+              AND file_path = ?
+              AND status IN ('CREATED')
+              AND datetime(created_at) > datetime('now', '-24 hours')
+        """, (repo_name, rule_id, file_path))
+        count = cursor.fetchone()[0]
+        return count > 0
+    except Exception as e:
+        logger.error(f"Failed to check autofix cooldown for {repo_name}/{rule_id}/{file_path}: {str(e)}")
+        # On error, default to False (allow) — prevents cooldown from blocking on DB failures
+        return False
+    finally:
+        conn.close()
+
