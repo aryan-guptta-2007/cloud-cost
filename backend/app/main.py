@@ -1,7 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from backend.app.api.webhook import router as webhook_router
+from backend.app.api.dashboard import router as dashboard_router
 from backend.app.database.db_client import run_migrations
 
 # Configure structured logging formatting for tracing metrics
@@ -37,8 +39,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Register Webhook Router
+# Enable CORS for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all for demo purposes
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
 app.include_router(webhook_router)
+app.include_router(dashboard_router)
 
 
 @app.get("/")
