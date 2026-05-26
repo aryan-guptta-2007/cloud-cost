@@ -17,7 +17,8 @@ import {
   ChevronRight, 
   Info, 
   ExternalLink,
-  Logs
+  Logs,
+  Plus
 } from 'lucide-react';
 
 // Interface types
@@ -214,7 +215,7 @@ const mockAutofixes: AutofixLog[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'landing' | 'dashboard'>('landing');
+  const [activeTab, setActiveTab] = useState<'landing' | 'case-studies' | 'dashboard' | 'onboarding'>('landing');
   const [isLive, setIsLive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
@@ -226,6 +227,16 @@ export default function App() {
   
   // Config mode state
   const [selectedMode, setSelectedMode] = useState<string>("approval_required");
+
+  // Onboarding wizard states
+  const [wizardStep, setWizardStep] = useState<number>(0);
+  const [selectedOrg, setSelectedOrg] = useState<string>("sentra-corp");
+  const [selectedRepos, setSelectedRepos] = useState<string[]>([]);
+  const [onboardingMode, setOnboardingMode] = useState<string>("approval_required");
+  const [isLoadingWizard, setIsLoadingWizard] = useState<boolean>(false);
+
+  // Case Studies state
+  const [selectedCaseStudy, setSelectedCaseStudy] = useState<string>("s3");
 
   // Simulator state
   const [simStep, setSimStep] = useState<number>(0);
@@ -381,6 +392,12 @@ export default function App() {
             Product
           </button>
           <button 
+            className={`nav-link ${activeTab === 'case-studies' ? 'active' : ''}`}
+            onClick={() => setActiveTab('case-studies')}
+          >
+            Case Studies
+          </button>
+          <button 
             className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
           >
@@ -435,6 +452,49 @@ export default function App() {
                 }}>
                   Watch Interactive Demo
                 </button>
+              </div>
+            </section>
+
+            {/* Target Ideal Customer Profile (ICP) Grid */}
+            <section className="features-grid" style={{ marginBottom: '5rem', marginTop: '-2rem' }}>
+              <div className="card feature-card">
+                <div className="feature-icon-wrapper" style={{ background: 'rgba(99, 102, 241, 0.08)' }}>
+                  <User size={18} />
+                </div>
+                <h3>Lean DevOps & Platform Teams</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  No dashboard dependencies or alert overhead. Automate security reviews and commit-level checks directly in GitHub without slowing your pipeline.
+                </p>
+              </div>
+
+              <div className="card feature-card">
+                <div className="feature-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.08)', color: 'var(--success)', borderColor: 'var(--success-border)' }}>
+                  <TrendingUp size={18} />
+                </div>
+                <h3>Cloud-Native Startups</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Deploy rapidly and maintain compliance. Safe automatic remediation checks guard production infra against human errors and unencrypted databases.
+                </p>
+              </div>
+
+              <div className="card feature-card">
+                <div className="feature-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.08)', color: 'var(--warning)', borderColor: 'var(--warning-border)' }}>
+                  <Layers size={18} />
+                </div>
+                <h3>Terraform-Heavy Ecosystems</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Instantly resolve static scanner findings. Convert static alert noise into clean, validated pull requests with a single click or comment.
+                </p>
+              </div>
+
+              <div className="card feature-card">
+                <div className="feature-icon-wrapper" style={{ background: 'rgba(99, 102, 241, 0.08)' }}>
+                  <GitPullRequest size={18} />
+                </div>
+                <h3>GitOps-Native Workflows</h3>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Designed specifically for developers. Grant approvals inside review comments (<code>/approve</code>) with zero context switching or credential exposure.
+                </p>
               </div>
             </section>
 
@@ -755,15 +815,28 @@ export default function App() {
                   Real-time cloud infrastructure validation statistics, GitOps logs, and audit trails.
                 </p>
               </div>
-              <button 
-                className="btn btn-secondary" 
-                onClick={fetchData} 
-                disabled={isLoading}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-              >
-                <RefreshCw size={14} className={isLoading ? "spin" : ""} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
-                <span>Refresh Data</span>
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setWizardStep(0);
+                    setActiveTab('onboarding');
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Plus size={14} />
+                  <span>Connect Repository</span>
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={fetchData} 
+                  disabled={isLoading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <RefreshCw size={14} className={isLoading ? "spin" : ""} style={{ animation: isLoading ? 'spin 1s linear infinite' : 'none' }} />
+                  <span>Refresh Data</span>
+                </button>
+              </div>
             </div>
 
             {/* Stats Summary ribbon */}
@@ -1001,6 +1074,606 @@ export default function App() {
                 </div>
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* Connect Repository Onboarding stepper wizard */}
+        {activeTab === 'onboarding' && (
+          <div style={{ maxWidth: '600px', margin: '3rem auto', padding: '1rem', width: '100%' }}>
+            <div className="card" style={{ padding: '2rem' }}>
+              <h2 style={{ marginBottom: '0.5rem', textAlign: 'center' }}>Connect GitHub Repository</h2>
+              <p style={{ color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.9rem', marginBottom: '2rem' }}>
+                Install the SentraAI GitHub App to enable automated security review and GitOps approvals.
+              </p>
+              
+              {/* Stepper indicator */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2.5rem', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: '15px', left: '10%', right: '10%', height: '2px', background: 'var(--border-color)', zIndex: 1 }}></div>
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '15px', 
+                  left: '10%', 
+                  width: `${wizardStep * 20}%`, 
+                  height: '2px', 
+                  background: 'var(--primary)', 
+                  zIndex: 2,
+                  transition: 'width 0.35s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}></div>
+
+                {[0, 1, 2, 3, 4].map((step) => (
+                  <div key={step} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 3, position: 'relative' }}>
+                    <div style={{ 
+                      width: '32px', 
+                      height: '32px', 
+                      borderRadius: '50%', 
+                      background: wizardStep >= step ? 'var(--primary)' : 'var(--bg-main)', 
+                      border: `2px solid ${wizardStep >= step ? 'var(--primary)' : 'var(--border-color)'}`, 
+                      color: wizardStep >= step ? '#fff' : 'var(--text-muted)',
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      fontWeight: 'bold',
+                      fontSize: '0.8rem',
+                      transition: 'background 0.35s, border-color 0.35s'
+                    }}>
+                      {step + 1}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', color: wizardStep >= step ? 'var(--text-primary)' : 'var(--text-muted)', marginTop: '0.5rem', fontWeight: 500 }}>
+                      {['Account', 'Org', 'App', 'Repo', 'Mode'][step]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Step Contents */}
+              {wizardStep === 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '1rem 0' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
+                    <User size={28} />
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Authorize GitHub Access</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      SentraAI requires developer authorization to query organizations and install repositories.
+                    </p>
+                  </div>
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ width: '100%' }}
+                    onClick={() => {
+                      setIsLoadingWizard(true);
+                      setTimeout(() => {
+                        setIsLoadingWizard(false);
+                        setWizardStep(1);
+                      }, 1200);
+                    }}
+                    disabled={isLoadingWizard}
+                  >
+                    {isLoadingWizard ? "Connecting..." : "Connect GitHub Account"}
+                  </button>
+                </div>
+              )}
+
+              {wizardStep === 1 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Select Organization</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Choose the GitHub organization containing the repositories you want to protect.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[
+                      { id: 'sentra-corp', name: 'sentra-corp', status: 'authorized' },
+                      { id: 'personal-sandbox', name: 'personal-sandbox', status: 'authorized' },
+                      { id: 'legacy-monolith', name: 'legacy-monolith (needs installation)', status: 'action_required' }
+                    ].map((org) => (
+                      <div 
+                        key={org.id} 
+                        className="card" 
+                        style={{ 
+                          padding: '1rem', 
+                          cursor: 'pointer', 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          borderColor: selectedOrg === org.id ? 'var(--primary)' : 'var(--border-color)',
+                          background: selectedOrg === org.id ? 'rgba(99, 102, 241, 0.03)' : 'var(--bg-card)'
+                        }}
+                        onClick={() => setSelectedOrg(org.id)}
+                      >
+                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{org.name}</span>
+                        <span className={`badge ${org.status === 'authorized' ? 'badge-success' : 'badge-warning'}`}>
+                          {org.status === 'authorized' ? 'Authorized' : 'Install App'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setWizardStep(0)}>Back</button>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 1 }} 
+                      onClick={() => {
+                        if (selectedOrg === 'legacy-monolith') {
+                          setWizardStep(2);
+                        } else {
+                          setWizardStep(3);
+                        }
+                      }}
+                      disabled={!selectedOrg}
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 2 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Install SentraAI App</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                      Authorize the SentraAI GitHub application to access metadata, checks, and pull requests.
+                    </p>
+                    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                        <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
+                        <span>Read access to code metadata and configuration files</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                        <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
+                        <span>Read & Write access to Pull Requests & Review Comments</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                        <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
+                        <span>Read & Write access to Check Runs API</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setWizardStep(1)}>Back</button>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 2 }}
+                      onClick={() => {
+                        setIsLoadingWizard(true);
+                        setTimeout(() => {
+                          setIsLoadingWizard(false);
+                          setWizardStep(3);
+                        }, 1500);
+                      }}
+                      disabled={isLoadingWizard}
+                    >
+                      {isLoadingWizard ? "Installing App..." : "Install & Authorize App"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 3 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Select Repositories</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Choose which repositories SentraAI should actively monitor and remediate.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {[
+                      'production-infra',
+                      'data-lake',
+                      's3-static-sites',
+                      'networking-core',
+                      'k8s-manifests'
+                    ].map((repo) => (
+                      <div 
+                        key={repo}
+                        className="card"
+                        style={{ 
+                          padding: '0.75rem 1rem', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.75rem', 
+                          cursor: 'pointer',
+                          borderColor: selectedRepos.includes(repo) ? 'var(--primary)' : 'var(--border-color)',
+                          background: selectedRepos.includes(repo) ? 'rgba(99, 102, 241, 0.03)' : 'var(--bg-card)'
+                        }}
+                        onClick={() => {
+                          if (selectedRepos.includes(repo)) {
+                            setSelectedRepos(selectedRepos.filter(r => r !== repo));
+                          } else {
+                            setSelectedRepos([...selectedRepos, repo]);
+                          }
+                        }}
+                      >
+                        <div style={{ 
+                          width: '16px', 
+                          height: '16px', 
+                          borderRadius: '4px', 
+                          border: '1px solid var(--border-color)', 
+                          background: selectedRepos.includes(repo) ? 'var(--primary)' : 'transparent',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontSize: '0.65rem'
+                        }}>
+                          {selectedRepos.includes(repo) && "✓"}
+                        </div>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{selectedOrg || 'sentra-corp'}/{repo}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setWizardStep(selectedOrg === 'legacy-monolith' ? 2 : 1)}>Back</button>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 1 }} 
+                      onClick={() => setWizardStep(4)}
+                      disabled={selectedRepos.length === 0}
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 4 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1rem 0' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Select Remediation Mode</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Configure the governance boundaries for security refactor commits.
+                    </p>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {[
+                      { id: 'comment_only', title: 'Comment Only', desc: 'Scan and report issues without automated code patches.' },
+                      { id: 'preview_only', title: 'Preview Only', desc: 'Suggest code fixes as PR comments, but do not commit branch fixes.' },
+                      { id: 'approval_required', title: 'Approval Gated', desc: 'Commit secure patches and open PRs only when developer types /approve.' },
+                      { id: 'autonomous', title: 'Autonomous', desc: 'Open remediation PRs immediately for high-confidence security rules.' }
+                    ].map((mode) => (
+                      <div 
+                        key={mode.id}
+                        className="card"
+                        style={{ 
+                          padding: '1rem', 
+                          cursor: 'pointer',
+                          borderColor: onboardingMode === mode.id ? 'var(--primary)' : 'var(--border-color)',
+                          background: onboardingMode === mode.id ? 'rgba(99, 102, 241, 0.03)' : 'var(--bg-card)'
+                        }}
+                        onClick={() => setOnboardingMode(mode.id)}
+                      >
+                        <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem', width: '100%' }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{mode.title}</span>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: '1px solid var(--border-color)', background: onboardingMode === mode.id ? 'var(--primary)' : 'transparent' }}></div>
+                        </div>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'left' }}>{mode.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setWizardStep(3)}>Back</button>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 2 }}
+                      onClick={() => {
+                        setIsLoadingWizard(true);
+                        setTimeout(() => {
+                          setIsLoadingWizard(false);
+                          
+                          // Register new repositories inside the scans telemetry view
+                          const newScans = selectedRepos.map((repo) => ({
+                            scan_id: `scan-${Math.random().toString(36).substring(2, 10)}`,
+                            repo_name: `${selectedOrg || 'sentra-corp'}/${repo}`,
+                            pr_number: 1,
+                            head_sha: `head${Math.random().toString(16).substring(2, 6)}`,
+                            status: 'COMPLETED',
+                            findings_count: 0,
+                            suppressed_count: 0,
+                            total_time: 0.35,
+                            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19)
+                          }));
+
+                          setScans(prev => [...newScans, ...prev]);
+                          setStats(prev => ({
+                            ...prev,
+                            total_scans: prev.total_scans + selectedRepos.length
+                          }));
+
+                          setWizardStep(5);
+                        }, 1200);
+                      }}
+                      disabled={isLoadingWizard}
+                    >
+                      {isLoadingWizard ? "Saving Configuration..." : "Activate Repository Protection"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 5 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '1rem 0', textAlign: 'center' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'var(--success-bg)', border: '1px solid var(--success-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)' }}>
+                    <CheckCircle2 size={32} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Repository Protection Activated!</h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
+                      SentraAI is now actively protecting <strong>{selectedRepos.length}</strong> repositories under the <strong>{selectedOrg}</strong> organization.
+                    </p>
+                    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem 1rem', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'inline-block', fontFamily: 'monospace' }}>
+                      Active Mode: SENTRA_REMEDIATION_MODE={onboardingMode.toUpperCase()}
+                    </div>
+                  </div>
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ width: '100%' }}
+                    onClick={() => {
+                      setWizardStep(0);
+                      setSelectedRepos([]);
+                      setActiveTab('dashboard');
+                    }}
+                  >
+                    Go to Security Operations Console
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Case Studies View */}
+        {activeTab === 'case-studies' && (
+          <div className="dashboard-container">
+            <div className="dashboard-header" style={{ marginBottom: '1.5rem' }}>
+              <div className="dashboard-title-group">
+                <h1>Governed Remediation Case Studies</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  Explore interactive before/after security refactoring patterns, including validation gates, audit trails, and strict safety restraints.
+                </p>
+              </div>
+            </div>
+
+            {/* Horizontal selector tabs */}
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem', width: '100%' }}>
+              {[
+                { id: 's3', title: 'S3 Public Bucket ACL', rule: 'AWS_S3_PUBLIC', tier: 'SAFE' },
+                { id: 'rds', title: 'RDS Storage Encryption', rule: 'AWS_DB_UNENCRYPTED', tier: 'SAFE' },
+                { id: 'sg', title: 'Open Security Group SSH', rule: 'AWS_SG_OPEN', tier: 'REVIEW_REQUIRED' },
+                { id: 'iam', title: 'Wildcard IAM Permissions', rule: 'AWS_IAM_WILDCARD', tier: 'NONE' }
+              ].map((cs) => (
+                <button
+                  key={cs.id}
+                  className={`btn ${selectedCaseStudy === cs.id ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSelectedCaseStudy(cs.id)}
+                  style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }}
+                >
+                  <span>{cs.title}</span>
+                  <span className={`badge ${
+                    cs.tier === 'SAFE' ? 'badge-success' : 
+                    cs.tier === 'REVIEW_REQUIRED' ? 'badge-warning' : 'badge-error'
+                  }`} style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', marginLeft: '0.5rem' }}>
+                    {cs.tier}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Main Case Study details card */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: '1.5rem', width: '100%' }}>
+              
+              {/* Left pane: HCL Diffs and explanation */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div className="card">
+                  <h3 style={{ marginBottom: '1rem' }}>
+                    {selectedCaseStudy === 's3' && "Case Study 1: Secure S3 Bucket ACL"}
+                    {selectedCaseStudy === 'rds' && "Case Study 2: Encrypted RDS Storage"}
+                    {selectedCaseStudy === 'sg' && "Case Study 3: Restricted Security Group Ingress"}
+                    {selectedCaseStudy === 'iam' && "Case Study 4: Wildcard IAM Policy Blocked (Safety Restraint)"}
+                  </h3>
+
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+                    {selectedCaseStudy === 's3' && "S3 buckets exposed to the public internet via public-read ACLs represent the most common source of cloud data leaks. SentraAI detects this issue and swaps it with a private ACL."}
+                    {selectedCaseStudy === 'rds' && "Database storage encryption is required under HIPAA, PCI-DSS, and general compliance guidelines. Enabling it encrypts active data blocks and snapshot volumes automatically."}
+                    {selectedCaseStudy === 'sg' && "Allowing SSH access from any IP address (0.0.0.0/0) exposes your infrastructure directly to network brute-forcing. SentraAI flags this as high-severity and replaces it with a warning and a custom VPC CIDR block."}
+                    {selectedCaseStudy === 'iam' && "Wildcard permissions allow arbitrary resources and actions, creating huge IAM privilege risks. Because IAM logic is context-dependent, SentraAI intentionally refuses automated remediation here to prevent breaking applications."}
+                  </p>
+
+                  {/* Code comparison panel */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* Before Code Block */}
+                    <div className="code-container">
+                      <div className="code-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span className="code-dot red"></span>
+                          <span>Vulnerable Configuration (Before)</span>
+                        </div>
+                      </div>
+                      <pre className="code-body" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.02)' }}>
+                        <code>
+                          {selectedCaseStudy === 's3' && (
+`resource "aws_s3_bucket" "insecure_bucket" {
+  bucket = "sentra-insecure-data-leak"
+  acl    = "public-read"  # EXPOSES BUCKET TO THE INTERNET
+}`
+                          )}
+                          {selectedCaseStudy === 'rds' && (
+`resource "aws_db_instance" "insecure_db" {
+  instance_class    = "db.t3.micro"
+  engine            = "postgres"
+  storage_encrypted = false  # INSECURE: STORAGE NOT ENCRYPTED
+}`
+                          )}
+                          {selectedCaseStudy === 'sg' && (
+`resource "aws_security_group" "insecure_sg" {
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # EXPOSES PORT 22 TO THE ENTIRE WORLD
+  }
+}`
+                          )}
+                          {selectedCaseStudy === 'iam' && (
+`resource "aws_iam_policy" "insecure_policy" {
+  policy = <<EOF
+{
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "*",      # HIGH RISK: WILDCARD ACTION
+      "Resource": "*"    # HIGH RISK: WILDCARD RESOURCE
+    }
+  ]
+}
+EOF
+}`
+                          )}
+                        </code>
+                      </pre>
+                    </div>
+
+                    {/* After Code Block */}
+                    <div className="code-container">
+                      <div className="code-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span className="code-dot green"></span>
+                          <span>
+                            {selectedCaseStudy === 'iam' ? "Remediation Refused (Safety Restraint)" : "Remediated Configuration (After Patch)"}
+                          </span>
+                        </div>
+                      </div>
+                      <pre className="code-body" style={{ 
+                        color: selectedCaseStudy === 'iam' ? 'var(--text-secondary)' : 'var(--success)', 
+                        background: selectedCaseStudy === 'iam' ? 'rgba(255,255,255,0.01)' : 'rgba(16,185,129,0.02)' 
+                      }}>
+                        <code>
+                          {selectedCaseStudy === 's3' && (
+`resource "aws_s3_bucket" "insecure_bucket" {
+  bucket = "sentra-insecure-data-leak"
+  acl    = "private"  # REMEDIATED: BUCKET MADE PRIVATE
+}`
+                          )}
+                          {selectedCaseStudy === 'rds' && (
+`resource "aws_db_instance" "insecure_db" {
+  instance_class    = "db.t3.micro"
+  engine            = "postgres"
+  storage_encrypted = true  # REMEDIATED: STORAGE ENCRYPTION ENABLED
+}`
+                          )}
+                          {selectedCaseStudy === 'sg' && (
+`resource "aws_security_group" "insecure_sg" {
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["YOUR_TRUSTED_IP_RANGE"]  # REMEDIATED: GATED TO VPC CIDR
+  }
+}`
+                          )}
+                          {selectedCaseStudy === 'iam' && (
+`# NO AUTOMATED FIX APPLIED.
+# IAM policy wildcard remediations are blocked.
+# Reason: Context-dependent. Modifying IAM permissions automatically
+# poses a high risk of silently breaking running container applications.`
+                          )}
+                        </code>
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right pane: Governance, validation audit details */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h3>Remediation Quality & Trust</h3>
+                  
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Rule Definition</span>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 500, marginTop: '0.2rem' }}>
+                      {selectedCaseStudy === 's3' && "AWS_S3_PUBLIC — Public S3 Bucket Detected"}
+                      {selectedCaseStudy === 'rds' && "AWS_DB_UNENCRYPTED — Unencrypted RDS Database Detected"}
+                      {selectedCaseStudy === 'sg' && "AWS_SG_OPEN — Ingress Open to 0.0.0.0/0 on Sensitive Port"}
+                      {selectedCaseStudy === 'iam' && "AWS_IAM_WILDCARD — Wildcard IAM Permissions Policy"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Safety Governance Tier</span>
+                    <div style={{ marginTop: '0.2rem' }}>
+                      {selectedCaseStudy === 's3' && <span className="badge badge-success">SAFE (Zero Risk AutoFix)</span>}
+                      {selectedCaseStudy === 'rds' && <span className="badge badge-success">SAFE (Zero Risk AutoFix)</span>}
+                      {selectedCaseStudy === 'sg' && <span className="badge badge-warning">REVIEW REQUIRED (IP Range Check)</span>}
+                      {selectedCaseStudy === 'iam' && <span className="badge badge-error">NONE (Intentionally Refused)</span>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>3-Layer Verification Checks</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.4rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '0.25rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.01)' }}>
+                        <span>Layer 1: HCL Syntax Check</span>
+                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>PASSED ✅</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '0.25rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.01)' }}>
+                        <span>Layer 2: Terraform CLI Validate</span>
+                        <span style={{ color: selectedCaseStudy === 'iam' ? 'var(--text-muted)' : 'var(--success)', fontWeight: 600 }}>
+                          {selectedCaseStudy === 'iam' ? "N/A" : "PASSED ✅"}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '0.25rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.01)' }}>
+                        <span>Layer 3: AST Resource Boundary Check</span>
+                        <span style={{ color: selectedCaseStudy === 'iam' ? 'var(--text-muted)' : 'var(--success)', fontWeight: 600 }}>
+                          {selectedCaseStudy === 'iam' ? "N/A" : "PASSED (Zero unintended mutations) ✅"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-secondary)' }}>PR Governance & Audit Trail</span>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: '0.4rem', background: 'rgba(255,255,255,0.01)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                      {selectedCaseStudy === 's3' && (
+                        <>
+                          <div><strong>Developer Approval:</strong> Aryangupta replied <code>/approve</code> inside thread</div>
+                          <div><strong>Drift Prevention:</strong> Preview hash verified, locking HEAD state</div>
+                          <div><strong>Remediation Branch:</strong> <code>sentraai/fix/aws-s3-public-...</code></div>
+                          <div><strong>Remediation PR:</strong> Auto-merged upon approval</div>
+                        </>
+                      )}
+                      {selectedCaseStudy === 'rds' && (
+                        <>
+                          <div><strong>Developer Approval:</strong> sara-devops replied <code>/approve</code> inside thread</div>
+                          <div><strong>Drift Prevention:</strong> Preview hash verified, locking HEAD state</div>
+                          <div><strong>Remediation Branch:</strong> <code>sentraai/fix/aws-db-unencrypted-...</code></div>
+                          <div><strong>Remediation PR:</strong> Auto-merged upon approval</div>
+                        </>
+                      )}
+                      {selectedCaseStudy === 'sg' && (
+                        <>
+                          <div><strong>Developer Approval:</strong> Aryangupta replied <code>/approve</code> inside thread</div>
+                          <div><strong>Drift Prevention:</strong> Preview hash verified</div>
+                          <div><strong>Warning Flags:</strong> Remediation contains placeholder IP range. Requires manual edit.</div>
+                          <div><strong>Remediation PR:</strong> Opened. Human merge required.</div>
+                        </>
+                      )}
+                      {selectedCaseStudy === 'iam' && (
+                        <>
+                          <div><strong>Status:</strong> Security review comment posted.</div>
+                          <div><strong>Restraint Applied:</strong> Auto-fix engine refused execution.</div>
+                          <div><strong>Rationale:</strong> Wildcard actions <code>"*"</code> require context-dependent IAM policies. Automated changes could cause backend service authorization failure.</div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
