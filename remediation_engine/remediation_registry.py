@@ -12,6 +12,7 @@ from remediation_engine.fixers.aws_sg_open_fixer import AwsSgOpenFixer
 from remediation_engine.fixers.aws_iam_wildcard_fixer import AwsIamWildcardFixer
 from remediation_engine.fixers.aws_db_unencrypted_fixer import AwsDbUnencryptedFixer
 from remediation_engine.diff_generators.diff_helper import generate_unified_diff
+from remediation_engine.validators.syntax_validator import validate_tf_syntax
 
 class RemediationMetadata:
     """Standardized metadata containing strategy parameters for a rule."""
@@ -74,6 +75,11 @@ class RemediationRegistry:
             # Execute dry-run fix in memory
             modified_content = metadata.fixer.apply_fix_content(original_content, resource_type, resource_name)
             
+            # Layer 1 validation: HCL syntax check
+            is_syntax_valid, syntax_err = validate_tf_syntax(modified_content)
+            if not is_syntax_valid:
+                raise ValueError(f"Syntax check failed: {syntax_err}")
+
             # Generate unified patch
             diff_str = generate_unified_diff(original_content, modified_content, file_path)
             validation_status = "SUCCESS"

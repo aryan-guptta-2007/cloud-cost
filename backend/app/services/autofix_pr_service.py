@@ -72,17 +72,19 @@ def build_autofix_pr_body(
     scan_id: str,
     original_pr_number: int,
     pr_fingerprint: str,
+    validation_checks: Optional[dict] = None
 ) -> str:
     """
     Builds the complete PR body for an auto-fix pull request.
 
     Sections:
     1. Header — why this PR was generated, original PR link
-    2. Fix Preview — what changed, confidence, safety tier
-    3. Conditional review note — for REVIEW_REQUIRED rules (e.g. SG CIDR)
-    4. Suppression Guidance — how to close this PR and suppress instead
-    5. Rollback Guidance — how to revert if the fix causes issues
-    6. Footer — trace ID, rule version, fingerprint, automation identity
+    2. Automated Validation Checks — status of syntax, CLI validate, and boundary checks
+    3. Fix Preview — what changed, confidence, safety tier
+    4. Conditional review note — for REVIEW_REQUIRED rules (e.g. SG CIDR)
+    5. Suppression Guidance — how to close this PR and suppress instead
+    6. Rollback Guidance — how to revert if the fix causes issues
+    7. Footer — trace ID, rule version, fingerprint, automation identity
     """
     lines = []
 
@@ -109,6 +111,39 @@ def build_autofix_pr_body(
         f"| **Requires Human Review** | {'✅ Yes — see note below' if finding.requires_human_review else '❌ No (SAFE tier fix)'} |",
         "",
     ]
+
+    # ── Automated Validation Checks (Trust signals) ─────────────────────────
+    if validation_checks:
+        lines += [
+            "### 🔒 Automated Validation Checks Passed",
+            "",
+            "| Validation Layer | Status | Details |",
+            "|---|---|---|",
+        ]
+        
+        # Syntax check
+        syntax_status = "✅ **PASSED**" if validation_checks.get("syntax") else "❌ **FAILED**"
+        lines.append(f"| **HCL Syntax Validation** | {syntax_status} | In-memory syntax parsed successfully |")
+
+        # CLI Validate
+        cli_val = validation_checks.get("cli")
+        if cli_val == "PASSED":
+            cli_status = "✅ **PASSED**"
+            cli_details = "`terraform validate` executed successfully"
+        elif cli_val == "SKIPPED":
+            cli_status = "⚠️ **SKIPPED**"
+            cli_details = "CLI not present in PATH (fallback bypassed)"
+        else:
+            cli_status = "❌ **FAILED**"
+            cli_details = f"Validation warning: {cli_val}"
+        lines.append(f"| **Terraform CLI Validation** | {cli_status} | {cli_details} |")
+
+        # Boundary check
+        boundary_status = "✅ **PASSED**" if validation_checks.get("boundary") else "❌ **FAILED**"
+        boundary_details = f"Changes restricted to target `{finding.resource_type}.{finding.resource_name}` block boundaries"
+        lines.append(f"| **Resource Boundary Safety** | {boundary_status} | {boundary_details} |")
+        lines.append("")
+
 
     # ── Why This PR Was Generated ────────────────────────────────────────────
     lines += ["### Why This PR Was Generated", ""]

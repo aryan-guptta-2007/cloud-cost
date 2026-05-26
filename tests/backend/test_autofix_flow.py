@@ -151,13 +151,14 @@ async def test_autofix_duplicate_pr_protection(mock_registry, mock_save, mock_co
     """
     mock_provider = AsyncMock()
     mock_provider.get_default_branch.return_value = "main"
-    mock_provider.get_file_content.return_value = 'resource "aws_s3_bucket" "x" { acl = "public-read" }'
+    mock_provider.get_file_content.return_value = 'resource "aws_s3_bucket" "test_resource" {\n  acl = "public-read"\n}\n'
     mock_provider.find_open_pr_for_branch.return_value = 99  # Existing PR found
 
     # Mock remediation registry so drift detection succeeds
     mock_registry.get_remediation_in_memory.return_value = {
         "remediation_diff": "--- a/main.tf\n+++ b/main.tf\n@@ -1 +1 @@\n- acl = \"public-read\"\n+ acl = \"private\"",
-        "validation_status": "SUCCESS"
+        "validation_status": "SUCCESS",
+        "fixed_content": 'resource "aws_s3_bucket" "test_resource" {\n  acl = "private"\n}\n'
     }
 
     findings = [make_finding("AWS_S3_PUBLIC")]

@@ -37,6 +37,10 @@ from backend.app.database.telemetry_dao import (
     save_autofix_pr_record,
     check_autofix_cooldown,
 )
+from remediation_engine.validators.syntax_validator import (
+    validate_via_terraform_cli,
+    validate_resource_boundary,
+)
 
 logger = logging.getLogger("sentra-ai")
 
@@ -163,6 +167,7 @@ async def _process_single_finding_autofix(
         # Recompute the fix against current HEAD content to detect drift
         fixed_content = None
         source_content_hash = None
+        validation_checks = None
 
         if current_content:
             source_content_hash = compute_source_content_hash(current_content)
@@ -176,11 +181,62 @@ async def _process_single_finding_autofix(
                 original_content=current_content
             )
 
+            # --- Layer 1 Syntax Check Result ---
+            val_status = fresh_remediation.get("validation_status", "PENDING")
+            if val_status.startswith("FAILED"):
+                logger.error(f"[{scan_id}] Layer 1 syntax check failed for rule {rule_id} on '{file_path}': {val_status}")
+                save_autofix_pr_record(
+                    scan_id=scan_id, repo_name=repo_full_name, rule_id=rule_id,
+                    file_path=file_path, branch_name=branch_name,
+                    fix_safety_tier=finding.fix_safety_tier, status="FAILED",
+                    source_content_hash=source_content_hash,
+                    failure_reason=f"LAYER_1_SYNTAX_ERROR: {val_status}"
+                )
+                return {"rule_id": rule_id, "file_path": file_path, "status": "FAILED", "reason": "syntax_error"}
+
             if fresh_remediation.get("remediation_diff"):
                 # Drift check: does the vulnerability still exist?
                 # If the fix generates no meaningful diff, the source already changed
                 fixed_content = fresh_remediation.get("fixed_content")
                 remediation_diff_for_pr = fresh_remediation.get("remediation_diff")
+
+                # --- Layer 2 CLI Check ---
+                is_cli_valid, cli_err = validate_via_terraform_cli(fixed_content)
+                if not is_cli_valid:
+                    logger.error(f"[{scan_id}] Layer 2 CLI validation failed for rule {rule_id} on '{file_path}': {cli_err}")
+                    save_autofix_pr_record(
+                        scan_id=scan_id, repo_name=repo_full_name, rule_id=rule_id,
+                        file_path=file_path, branch_name=branch_name,
+                        fix_safety_tier=finding.fix_safety_tier, status="FAILED",
+                        source_content_hash=source_content_hash,
+                        failure_reason=f"LAYER_2_CLI_ERROR: {cli_err}"
+                    )
+                    return {"rule_id": rule_id, "file_path": file_path, "status": "FAILED", "reason": "cli_error"}
+
+                # --- Layer 3 Boundary Check ---
+                is_boundary_valid, boundary_err = validate_resource_boundary(
+                    original_content=current_content,
+                    modified_content=fixed_content,
+                    resource_type=finding.resource_type or "",
+                    resource_name=finding.resource_name or ""
+                )
+                if not is_boundary_valid:
+                    logger.error(f"[{scan_id}] Layer 3 resource boundary safety check failed for rule {rule_id} on '{file_path}': {boundary_err}")
+                    save_autofix_pr_record(
+                        scan_id=scan_id, repo_name=repo_full_name, rule_id=rule_id,
+                        file_path=file_path, branch_name=branch_name,
+                        fix_safety_tier=finding.fix_safety_tier, status="FAILED",
+                        source_content_hash=source_content_hash,
+                        failure_reason=f"LAYER_3_BOUNDARY_ERROR: {boundary_err}"
+                    )
+                    return {"rule_id": rule_id, "file_path": file_path, "status": "FAILED", "reason": "boundary_error"}
+
+                # Prepare trust check status signals for PR body
+                validation_checks = {
+                    "syntax": True,
+                    "cli": "PASSED" if "Skipping" not in cli_err else "SKIPPED",
+                    "boundary": True
+                }
             else:
                 logger.info(
                     f"[{scan_id}] DRIFT DETECTED: The vulnerability in '{file_path}' "
@@ -198,6 +254,7 @@ async def _process_single_finding_autofix(
             # Fall back to the diff already computed during scan
             remediation_diff_for_pr = finding.remediation_diff
             fixed_content = None  # We'll use base64 commit of the original fix
+            validation_checks = None
 
         # Create a temporary finding-like object with the fresh diff for PR body
         finding_for_pr = Finding(
@@ -243,8 +300,10 @@ async def _process_single_finding_autofix(
             policy=policy,
             scan_id=scan_id,
             original_pr_number=original_pr_number,
-            pr_fingerprint=pr_fingerprint
+            pr_fingerprint=pr_fingerprint,
+            validation_checks=validation_checks
         )
+
         commit_message = build_autofix_commit_message(finding_for_pr, scan_id)
 
         # ── Step 6: Create Branch ─────────────────────────────────────────────
