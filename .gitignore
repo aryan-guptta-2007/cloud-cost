@@ -76,3 +76,6 @@ Thumbs.db
 *.db
 *.db-shm
 *.db-wal
+
+sentra-private-key.pem
+.refact/
