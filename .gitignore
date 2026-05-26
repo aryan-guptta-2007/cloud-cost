@@ -56,12 +56,13 @@ share/python-wheels/
 MANIFEST
 
 # Virtual environments
-.venv
+.venv/
 venv/
 ENV/
 env.bak/
 venv.bak/
 
+# IDE files
 .idea/
 .vscode/
 *.suo
@@ -69,13 +70,18 @@ venv.bak/
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
 .DS_Store
 Thumbs.db
 
-# SQLite local database files (runtime artifacts, never committed)
+# SQLite local database files
 *.db
 *.db-shm
 *.db-wal
 
-sentra-private-key.pem
+# Private keys
+*.pem
+
+# Refact
 .refact/
