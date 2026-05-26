@@ -113,6 +113,23 @@ class GitProvider(ABC):
         """Create inline review comment on PR line."""
         pass
 
+    @abstractmethod
+    async def get_single_pull_request_comment(self, repo_full_name: str, comment_id: int) -> Dict[str, Any]:
+        """Fetches a single pull request review comment by ID."""
+        pass
+
+    @abstractmethod
+    async def post_pull_request_comment_reply(
+        self,
+        repo_full_name: str,
+        pull_number: int,
+        comment_id: int,
+        body: str
+    ) -> Dict[str, Any]:
+        """Creates a reply to an existing pull request review comment thread."""
+        pass
+
+
 
 
 
@@ -493,5 +510,39 @@ class GitHubProvider(GitProvider):
             response.raise_for_status()
 
             return response.json()
+
+    async def get_single_pull_request_comment(self, repo_full_name: str, comment_id: int) -> Dict[str, Any]:
+        token = await self._get_access_token()
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        url = f"https://api.github.com/repos/{repo_full_name}/pulls/comments/{comment_id}"
+        async with httpx.AsyncClient() as client:
+            response = await self._request_with_retry(client, "GET", url, headers=headers)
+            return response.json()
+
+    async def post_pull_request_comment_reply(
+        self,
+        repo_full_name: str,
+        pull_number: int,
+        comment_id: int,
+        body: str
+    ) -> Dict[str, Any]:
+        token = await self._get_access_token()
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        url = f"https://api.github.com/repos/{repo_full_name}/pulls/{pull_number}/comments"
+        payload = {
+            "body": body,
+            "in_reply_to": comment_id
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            return response.json()
+
 
 

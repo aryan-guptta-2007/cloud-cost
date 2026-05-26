@@ -30,6 +30,18 @@ SCAN_TIMEOUT_SECONDS = float(
     os.getenv("SCAN_TIMEOUT_SECONDS", "30.0")
 )
 
+# Remediation Automation Modes
+class RemediationMode:
+    COMMENT_ONLY = "comment_only"
+    PREVIEW_ONLY = "preview_only"
+    APPROVAL_REQUIRED = "approval_required"
+    AUTONOMOUS = "autonomous"
+
+SENTRA_REMEDIATION_MODE = str(
+    os.getenv("SENTRA_REMEDIATION_MODE", RemediationMode.APPROVAL_REQUIRED)
+).strip().lower()
+
+
 
 def get_private_key() -> str:
     """

@@ -182,3 +182,59 @@ def check_autofix_cooldown(repo_name: str, rule_id: str, file_path: str) -> bool
     finally:
         conn.close()
 
+
+def save_approval_audit_log(
+    scan_id: str,
+    repo_name: str,
+    finding_id: str,
+    actor: str,
+    command: str,
+    mode: str,
+    status: str,
+    pr_url: Optional[str] = None,
+    failure_reason: Optional[str] = None
+) -> None:
+    """
+    Saves an approval action record to the approval_audit_logs table.
+    Ensures persistent audit trails for SOC2 and governance compliance.
+    """
+    conn = get_connection()
+    try:
+        conn.execute("""
+            INSERT INTO approval_audit_logs (
+                scan_id, repo_name, finding_id, actor, command, mode, pr_url, status, failure_reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            scan_id, repo_name, finding_id, actor, command, mode, pr_url, status, failure_reason
+        ))
+        conn.commit()
+        logger.info(
+            f"[{scan_id}] Approval audit log written: actor={actor} finding={finding_id} status={status}"
+        )
+    except Exception as e:
+        logger.error(f"[{scan_id}] Failed to write approval audit log: {str(e)}")
+    finally:
+        conn.close()
+
+
+def get_existing_autofix_pr(repo_name: str, branch_name: str) -> Optional[str]:
+    """
+    Retrieves the PR URL for an existing created autofix PR if it exists.
+    Ensures idempotency checks for GitOps approval commands.
+    """
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT pr_url FROM autofix_prs
+            WHERE repo_name = ? AND branch_name = ? AND status = 'CREATED'
+            LIMIT 1
+        """, (repo_name, branch_name))
+        row = cursor.fetchone()
+        return row[0] if row else None
+    except Exception as e:
+        logger.error(f"Failed to query existing autofix PR for '{branch_name}': {str(e)}")
+        return None
+    finally:
+        conn.close()
+

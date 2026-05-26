@@ -12,7 +12,7 @@ from remediation_engine.remediation_registry import remediation_registry
 from backend.app.services.github_service import GitProvider
 from backend.app.database.telemetry_dao import save_scan_telemetry, save_suppression_audit
 from remediation_engine.autofix_policy import get_autofix_policy
-from backend.app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS
+from backend.app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS, SENTRA_REMEDIATION_MODE, RemediationMode
 
 logger = logging.getLogger("sentra-ai")
 
@@ -188,6 +188,21 @@ async def scan_pr_files(
                                 ""
                             )
 
+                        diff_preview = ""
+                        preview_hash = ""
+                        if SENTRA_REMEDIATION_MODE != RemediationMode.COMMENT_ONLY and finding.remediation_diff:
+                            diff_preview = f"\n\n**Proposed Fix Preview:**\n```diff\n{finding.remediation_diff.strip()}\n```"
+                            import hashlib
+                            preview_hash = hashlib.sha256(finding.remediation_diff.strip().encode("utf-8")).hexdigest()
+
+                        approval_note = ""
+                        if SENTRA_REMEDIATION_MODE == RemediationMode.APPROVAL_REQUIRED:
+                            approval_note = "\n\n💡 **Reply with `/approve` or `/fix`** to have SentraAI automatically open a remediation PR."
+
+                        metadata_tags = f"\n\n<!-- SentraAI-RuleID: {finding.rule_id} -->\n<!-- SentraAI-FilePath: {filename} -->\n<!-- SentraAI-LineNumber: {finding.line_number} -->\n<!-- SentraAI-ScanID: {scan_id} -->"
+                        if preview_hash:
+                            metadata_tags += f"\n<!-- SentraAI-PreviewHash: {preview_hash} -->"
+
                         comment_body = f"""
 {severity_emoji} **{finding.severity.value} Security Finding**
 
@@ -201,7 +216,7 @@ async def scan_pr_files(
 **Recommended Fix:**  
 {finding.recommended_fix}
 
-**Confidence:** {finding.fix_confidence}
+**Confidence:** {finding.fix_confidence}{diff_preview}{approval_note}{metadata_tags}
 """
 
                         await git_provider.create_inline_pr_comment(

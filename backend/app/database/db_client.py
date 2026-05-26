@@ -121,6 +121,27 @@ def run_migrations():
             conn.commit()
             logger.info("Migration version 3 applied successfully.")
 
+        # Migration 4: approval_audit_logs table — tracks GitOps approval workflow audit logs
+        if current_version < 4:
+            logger.info("Applying database migration version 4...")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS approval_audit_logs (
+                    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scan_id        TEXT NOT NULL,
+                    repo_name      TEXT NOT NULL,
+                    finding_id     TEXT NOT NULL,
+                    actor          TEXT NOT NULL,
+                    command        TEXT NOT NULL,
+                    mode           TEXT NOT NULL,
+                    pr_url         TEXT,
+                    status         TEXT NOT NULL, -- APPROVED / REJECTED / EXPIRED / FAILED / DUPLICATE
+                    failure_reason TEXT,
+                    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.execute("INSERT INTO schema_migrations (version) VALUES (4)")
+            conn.commit()
+            logger.info("Migration version 4 applied successfully.")
             
         # Run retention limit cleanups (30 days retention policy)
         clean_retention_data(conn)
