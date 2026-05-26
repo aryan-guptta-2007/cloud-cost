@@ -163,6 +163,69 @@ async def scan_pr_files(
                 metrics["remediation_time"] += time.time() - remediation_start
                 
                 findings.extend(active_findings)
+
+                # 7. Create inline PR review comments
+                repo_owner, repo_name = repo_full_name.split("/")
+
+                for finding in active_findings:
+
+                    try:
+                        if not finding.line_number:
+                            continue
+
+                        severity_emoji = {
+                            "CRITICAL": "🚨",
+                            "HIGH": "⚠️",
+                            "MEDIUM": "🟡",
+                            "LOW": "🔵"
+                        }.get(finding.severity.value, "⚠️")
+
+                        explanation = ""
+
+                        if finding.explanation:
+                            explanation = finding.explanation.get(
+                                "why_it_matters",
+                                ""
+                            )
+
+                        comment_body = f"""
+{severity_emoji} **{finding.severity.value} Security Finding**
+
+**Rule:** `{finding.rule_id}`
+
+**Description:** {finding.description}
+
+**Why this matters:**  
+{explanation}
+
+**Recommended Fix:**  
+{finding.recommended_fix}
+
+**Confidence:** {finding.fix_confidence}
+"""
+
+                        await git_provider.create_inline_pr_comment(
+                            repo_owner=repo_owner,
+                            repo_name=repo_name,
+                            pull_number=pr_number,
+                            commit_id=sha,
+                            path=filename,
+                            line=finding.line_number,
+                            body=comment_body
+                        )
+
+                        logger.info(
+                            f"[{scan_id}] Inline PR comment created "
+                            f"for {finding.rule_id} "
+                            f"on line {finding.line_number}"
+                        )
+
+                    except Exception as comment_error:
+                        logger.warning(
+                            f"[{scan_id}] Failed to create inline comment: "
+                            f"{str(comment_error)}"
+                        )
+
                 
             except ParseError as pe:
                 logger.error(f"[{scan_id}] Parser error scanning file {filename}: {str(pe)}")

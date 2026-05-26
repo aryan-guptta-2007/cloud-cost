@@ -1,8 +1,11 @@
 import os
 import sys
 import json
+import uuid
 from unittest.mock import AsyncMock, patch
-from fastapi.testclient import TestClient
+
+# Ensure GITHUB_WEBHOOK_SECRET is empty for signature bypass in tests
+os.environ["GITHUB_WEBHOOK_SECRET"] = ""
 
 # Ensure parent directory is in sys.path for monorepo imports
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -11,8 +14,13 @@ if parent_dir not in sys.path:
 
 from backend.app.main import app
 from shared.constants.comment_signature import COMMENT_SIGNATURE
+from backend.app.security.signature_validator import verify_signature
+from fastapi.testclient import TestClient
 
+app.dependency_overrides[verify_signature] = lambda: None
 client = TestClient(app)
+
+
 
 @patch("backend.app.services.webhook_service.GitHubProvider")
 def test_webhook_pull_request_flow(mock_provider_class):
@@ -73,8 +81,9 @@ def test_webhook_pull_request_flow(mock_provider_class):
     
     headers = {
         "X-GitHub-Event": "pull_request",
-        "X-GitHub-Delivery": "mock-delivery-id-777"
+        "X-GitHub-Delivery": f"mock-delivery-{uuid.uuid4()}"
     }
+
 
     # Bypasses signature verification by default since GITHUB_WEBHOOK_SECRET is empty
     response = client.post("/webhook", json=payload, headers=headers)

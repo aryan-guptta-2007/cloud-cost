@@ -2,6 +2,7 @@ import os
 import sys
 import sqlite3
 import pytest
+import uuid
 
 # Ensure parent directory is in path
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -29,7 +30,7 @@ def test_database_migrations_and_dao():
     assert os.path.exists(DB_PATH)
 
     # 2. Test Webhook delivery idempotency checks
-    delivery_id = "test-delivery-id-uuid-555"
+    delivery_id = f"test-delivery-id-uuid-{uuid.uuid4()}"
 
     # First write should succeed
     assert register_delivery_id(delivery_id) is True
@@ -37,11 +38,12 @@ def test_database_migrations_and_dao():
     assert register_delivery_id(delivery_id) is False
 
     # 3. Test Telemetry insertion
-    scan_id = "test-scan-id-uuid-888"
+    scan_id = f"test-scan-id-uuid-{uuid.uuid4()}"
     save_scan_telemetry(
         scan_id=scan_id,
         repo_name="test-org/test-repo",
         pr_number=10,
+
         head_sha="mock-commit-sha",
         status="COMPLETED",
         findings_count=3,
@@ -111,13 +113,17 @@ def test_database_migrations_and_dao():
         assert audit_rows[1]["resource_key"] == "aws_iam_policy.legacy_policy"
 
         # 6. Test Migration v3 — autofix_prs table
-        autofix_scan_id = "test-autofix-scan-777"
+        autofix_scan_id = f"test-autofix-scan-{uuid.uuid4()}"
+        dynamic_repo = f"test-org/test-repo-{uuid.uuid4()}"
+        dynamic_file = f"infra/main-{uuid.uuid4()}.tf"
+        dynamic_branch = f"sentraai/fix/aws-s3-public-{uuid.uuid4()}"
+
         save_autofix_pr_record(
             scan_id=autofix_scan_id,
-            repo_name="test-org/test-repo",
+            repo_name=dynamic_repo,
             rule_id="AWS_S3_PUBLIC",
-            file_path="infra/main.tf",
-            branch_name="sentraai/fix/aws-s3-public-test1234",
+            file_path=dynamic_file,
+            branch_name=dynamic_branch,
             fix_safety_tier="SAFE",
             status="CREATED",
             pr_url="https://github.com/test-org/test-repo/pull/101",
@@ -132,8 +138,8 @@ def test_database_migrations_and_dao():
         autofix_row = cursor.fetchone()
         assert autofix_row is not None
         assert autofix_row["rule_id"] == "AWS_S3_PUBLIC"
-        assert autofix_row["file_path"] == "infra/main.tf"
-        assert autofix_row["branch_name"] == "sentraai/fix/aws-s3-public-test1234"
+        assert autofix_row["file_path"] == dynamic_file
+        assert autofix_row["branch_name"] == dynamic_branch
         assert autofix_row["status"] == "CREATED"
         assert autofix_row["pr_number"] == 101
         assert autofix_row["pr_fingerprint"] == "abcd1234ef567890"
@@ -142,16 +148,17 @@ def test_database_migrations_and_dao():
 
         # 7. Test Cooldown enforcement
         # The CREATED record above should trigger cooldown for same repo+rule+file
-        is_cooling = check_autofix_cooldown("test-org/test-repo", "AWS_S3_PUBLIC", "infra/main.tf")
+        is_cooling = check_autofix_cooldown(dynamic_repo, "AWS_S3_PUBLIC", dynamic_file)
         assert is_cooling is True, "Cooldown should be active within 24h of CREATED status"
 
         # Different file should NOT be in cooldown
-        different_file_cooldown = check_autofix_cooldown("test-org/test-repo", "AWS_S3_PUBLIC", "other/main.tf")
+        different_file_cooldown = check_autofix_cooldown(dynamic_repo, "AWS_S3_PUBLIC", f"other/{dynamic_file}")
         assert different_file_cooldown is False, "Cooldown should not apply to different files"
 
         # Different rule should NOT be in cooldown
-        different_rule_cooldown = check_autofix_cooldown("test-org/test-repo", "AWS_DB_UNENCRYPTED", "infra/main.tf")
+        different_rule_cooldown = check_autofix_cooldown(dynamic_repo, "AWS_DB_UNENCRYPTED", dynamic_file)
         assert different_rule_cooldown is False, "Cooldown should not apply to different rules"
+
 
         # 8. Test all valid lifecycle status values can be written
         for lifecycle_status in ["FAILED", "DUPLICATE_SKIPPED", "COOLDOWN_SKIPPED", "MERGED", "CLOSED", "STALE"]:

@@ -79,6 +79,7 @@ class RemediationRegistry:
             validation_status = "SUCCESS"
         except Exception as e:
             validation_status = f"FAILED: {str(e)}"
+            modified_content = None
 
         return {
             "explanation": explanation,
@@ -86,8 +87,10 @@ class RemediationRegistry:
             "remediation_mode": metadata.mode,
             "fix_confidence": metadata.fix_confidence,
             "remediation_diff": diff_str,
-            "validation_status": validation_status
+            "validation_status": validation_status,
+            "fixed_content": modified_content if validation_status == "SUCCESS" else None
         }
+
 
     def get_remediation(self, rule_id: str, file_path: str, resource_type: str, resource_name: str) -> Dict[str, Any]:
         """

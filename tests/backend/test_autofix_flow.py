@@ -181,8 +181,7 @@ async def test_autofix_duplicate_pr_protection(mock_registry, mock_save, mock_co
 @patch("backend.app.services.autofix_service.check_autofix_cooldown", return_value=False)
 @patch("backend.app.services.autofix_service.save_autofix_pr_record")
 @patch("backend.app.services.autofix_service.remediation_registry")
-@patch("backend.app.services.autofix_service._extract_fixed_content", return_value='resource "aws_s3_bucket" "test_resource" {\n  acl = "private"\n}\n')
-async def test_autofix_pr_created_for_safe_finding(mock_extract, mock_registry, mock_save, mock_cooldown):
+async def test_autofix_pr_created_for_safe_finding(mock_registry, mock_save, mock_cooldown):
     """
     Happy path: a SAFE tier finding with a valid diff should trigger branch + PR creation.
     """
@@ -197,8 +196,10 @@ async def test_autofix_pr_created_for_safe_finding(mock_extract, mock_registry, 
     # Mock remediation registry so drift detection + fix generation succeeds
     mock_registry.get_remediation_in_memory.return_value = {
         "remediation_diff": "--- a/main.tf\n+++ b/main.tf\n@@ -1 +1 @@\n- acl = \"public-read\"\n+ acl = \"private\"",
-        "validation_status": "SUCCESS"
+        "validation_status": "SUCCESS",
+        "fixed_content": 'resource "aws_s3_bucket" "test_resource" {\n  acl = \"private\"\n}\n'
     }
+
 
     findings = [make_finding("AWS_S3_PUBLIC")]
 

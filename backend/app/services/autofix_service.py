@@ -179,9 +179,7 @@ async def _process_single_finding_autofix(
             if fresh_remediation.get("remediation_diff"):
                 # Drift check: does the vulnerability still exist?
                 # If the fix generates no meaningful diff, the source already changed
-                fixed_content = _extract_fixed_content(
-                    current_content, fresh_remediation.get("remediation_diff", "")
-                )
+                fixed_content = fresh_remediation.get("fixed_content")
                 remediation_diff_for_pr = fresh_remediation.get("remediation_diff")
             else:
                 logger.info(

@@ -99,6 +99,21 @@ class GitProvider(ABC):
         """
         pass
 
+    @abstractmethod
+    async def create_inline_pr_comment(
+        self,
+        repo_owner: str,
+        repo_name: str,
+        pull_number: int,
+        commit_id: str,
+        path: str,
+        line: int,
+        body: str,
+    ) -> Dict[str, Any]:
+        """Create inline review comment on PR line."""
+        pass
+
+
 
 
 class GitHubProvider(GitProvider):
@@ -116,7 +131,7 @@ class GitHubProvider(GitProvider):
         payload = {
             "iat": int(time.time()) - 60,
             "exp": int(time.time()) + (10 * 60),  # Max 10 mins
-            "iss": int(GITHUB_APP_ID)
+            "iss": str(GITHUB_APP_ID)
         }
         return jwt.encode(payload, private_key, algorithm="RS256")
 
@@ -431,4 +446,52 @@ class GitHubProvider(GitProvider):
         except Exception as e:
             logger.warning(f"Failed to check for existing PR for branch '{head_branch}': {str(e)}")
             return None
+
+    async def _get_headers(self, repo_owner: str, repo_name: str) -> Dict[str, str]:
+        token = await self._get_access_token()
+        return {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+    async def create_inline_pr_comment(
+        self,
+        repo_owner: str,
+        repo_name: str,
+        pull_number: int,
+        commit_id: str,
+        path: str,
+        line: int,
+        body: str,
+    ):
+        """
+        Create inline review comment on PR line
+        """
+
+        url = (
+            f"https://api.github.com/repos/"
+            f"{repo_owner}/{repo_name}/pulls/{pull_number}/comments"
+        )
+
+        payload = {
+            "body": body,
+            "commit_id": commit_id,
+            "path": path,
+            "line": line,
+            "side": "RIGHT"
+        }
+
+        headers = await self._get_headers(repo_owner, repo_name)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                headers=headers,
+                json=payload
+            )
+
+            response.raise_for_status()
+
+            return response.json()
+
 
