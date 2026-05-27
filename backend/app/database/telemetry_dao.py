@@ -1,7 +1,7 @@
 import sqlite3
 import logging
 from typing import List, Dict, Any, Optional
-from backend.app.database.db_client import get_connection
+from app.database.db_client import get_connection
 
 logger = logging.getLogger("sentra-ai")
 

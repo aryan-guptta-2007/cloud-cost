@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, BackgroundTasks, Header, Depends, status
-from backend.app.security.signature_validator import verify_signature
-from backend.app.services.webhook_service import (
+from app.security.signature_validator import verify_signature
+from app.services.webhook_service import (
     process_pull_request_webhook,
     process_review_comment_webhook,
 )

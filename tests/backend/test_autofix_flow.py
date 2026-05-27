@@ -6,11 +6,14 @@ from unittest.mock import AsyncMock, patch, MagicMock
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+backend_dir = os.path.join(parent_dir, "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
 from shared.schemas.finding_schema import Finding, FixSafetyTier
 from shared.constants.severity import Severity
-from backend.app.services.autofix_service import run_autofix_workflows, _build_branch_name
-from backend.app.services.autofix_pr_service import (
+from app.services.autofix_service import run_autofix_workflows, _build_branch_name
+from app.services.autofix_pr_service import (
     compute_pr_fingerprint,
     compute_source_content_hash,
     build_autofix_pr_title,
@@ -77,9 +80,9 @@ async def test_source_content_hash_is_deterministic():
 
 
 @pytest.mark.asyncio
-@patch("backend.app.services.autofix_service.check_autofix_cooldown", return_value=False)
-@patch("backend.app.services.autofix_service.save_autofix_pr_record")
-@patch("backend.app.services.autofix_service.remediation_registry")
+@patch("app.services.autofix_service.check_autofix_cooldown", return_value=False)
+@patch("app.services.autofix_service.save_autofix_pr_record")
+@patch("app.services.autofix_service.remediation_registry")
 async def test_autofix_skips_ineligible_findings(
     mock_registry, mock_save, mock_cooldown
 ):
@@ -113,9 +116,9 @@ async def test_autofix_skips_ineligible_findings(
 
 
 @pytest.mark.asyncio
-@patch("backend.app.services.autofix_service.check_autofix_cooldown", return_value=False)
-@patch("backend.app.services.autofix_service.save_autofix_pr_record")
-@patch("backend.app.services.autofix_service.remediation_registry")
+@patch("app.services.autofix_service.check_autofix_cooldown", return_value=False)
+@patch("app.services.autofix_service.save_autofix_pr_record")
+@patch("app.services.autofix_service.remediation_registry")
 async def test_autofix_cooldown_skips_pr(mock_registry, mock_save, mock_cooldown):
     """
     When cooldown is active, autofix must skip without creating any branch or PR.
@@ -142,9 +145,9 @@ async def test_autofix_cooldown_skips_pr(mock_registry, mock_save, mock_cooldown
 
 
 @pytest.mark.asyncio
-@patch("backend.app.services.autofix_service.check_autofix_cooldown", return_value=False)
-@patch("backend.app.services.autofix_service.save_autofix_pr_record")
-@patch("backend.app.services.autofix_service.remediation_registry")
+@patch("app.services.autofix_service.check_autofix_cooldown", return_value=False)
+@patch("app.services.autofix_service.save_autofix_pr_record")
+@patch("app.services.autofix_service.remediation_registry")
 async def test_autofix_duplicate_pr_protection(mock_registry, mock_save, mock_cooldown):
     """
     When an open PR already exists for the same branch, no new PR should be created.
@@ -179,9 +182,9 @@ async def test_autofix_duplicate_pr_protection(mock_registry, mock_save, mock_co
 
 
 @pytest.mark.asyncio
-@patch("backend.app.services.autofix_service.check_autofix_cooldown", return_value=False)
-@patch("backend.app.services.autofix_service.save_autofix_pr_record")
-@patch("backend.app.services.autofix_service.remediation_registry")
+@patch("app.services.autofix_service.check_autofix_cooldown", return_value=False)
+@patch("app.services.autofix_service.save_autofix_pr_record")
+@patch("app.services.autofix_service.remediation_registry")
 async def test_autofix_pr_created_for_safe_finding(mock_registry, mock_save, mock_cooldown):
     """
     Happy path: a SAFE tier finding with a valid diff should trigger branch + PR creation.
@@ -236,11 +239,11 @@ async def test_autofix_pr_created_for_safe_finding(mock_registry, mock_save, moc
 
 
 @pytest.mark.asyncio
-@patch("backend.app.services.autofix_service.check_autofix_cooldown", return_value=False)
-@patch("backend.app.services.autofix_service.save_autofix_pr_record")
+@patch("app.services.autofix_service.check_autofix_cooldown", return_value=False)
+@patch("app.services.autofix_service.save_autofix_pr_record")
 async def test_autofix_pr_body_contains_required_sections(mock_save, mock_cooldown):
     """PR body must contain all trust-critical sections."""
-    from backend.app.services.autofix_pr_service import build_autofix_pr_body
+    from app.services.autofix_pr_service import build_autofix_pr_body
     from remediation_engine.autofix_policy import get_autofix_policy
 
     finding = make_finding("AWS_S3_PUBLIC")

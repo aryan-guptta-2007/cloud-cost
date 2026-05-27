@@ -11,10 +11,13 @@ os.environ["GITHUB_WEBHOOK_SECRET"] = ""
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+backend_dir = os.path.join(parent_dir, "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
-from backend.app.main import app
+from app.main import app
 from shared.constants.comment_signature import COMMENT_SIGNATURE
-from backend.app.security.signature_validator import verify_signature
+from app.security.signature_validator import verify_signature
 from fastapi.testclient import TestClient
 
 app.dependency_overrides[verify_signature] = lambda: None
@@ -22,7 +25,7 @@ client = TestClient(app)
 
 
 
-@patch("backend.app.services.webhook_service.GitHubProvider")
+@patch("app.services.webhook_service.GitHubProvider")
 def test_webhook_pull_request_flow(mock_provider_class):
     """
     Tests that a valid pull_request webhook:

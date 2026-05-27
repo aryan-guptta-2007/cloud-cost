@@ -2,9 +2,9 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.api.webhook import router as webhook_router
-from backend.app.api.dashboard import router as dashboard_router
-from backend.app.database.db_client import run_migrations
+from app.api.webhook import router as webhook_router
+from app.api.dashboard import router as dashboard_router
+from app.database.db_client import run_migrations
 
 # Configure structured logging formatting for tracing metrics
 logging.basicConfig(

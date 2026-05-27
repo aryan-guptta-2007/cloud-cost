@@ -1,11 +1,11 @@
 import logging
 from typing import Dict, Any
-from backend.app.services.github_service import GitHubProvider
-from backend.app.services.scan_service import scan_pr_files
-from backend.app.services.comment_service import build_pr_comment_body
-from backend.app.services.autofix_service import run_autofix_workflows
-from backend.app.database.telemetry_dao import register_delivery_id
-from backend.app.config import SENTRA_REMEDIATION_MODE, RemediationMode
+from app.services.github_service import GitHubProvider
+from app.services.scan_service import scan_pr_files
+from app.services.comment_service import build_pr_comment_body
+from app.services.autofix_service import run_autofix_workflows
+from app.database.telemetry_dao import register_delivery_id
+from app.config import SENTRA_REMEDIATION_MODE, RemediationMode
 
 logger = logging.getLogger("sentra-ai")
 
@@ -167,7 +167,7 @@ async def process_review_comment_webhook(delivery_id: str, payload: Dict[str, An
     actor = comment.get("user", {}).get("login", "unknown")
     allowed_associations = {"OWNER", "MEMBER", "COLLABORATOR"}
 
-    from backend.app.database.telemetry_dao import save_approval_audit_log, get_existing_autofix_pr
+    from app.database.telemetry_dao import save_approval_audit_log, get_existing_autofix_pr
 
     if author_assoc not in allowed_associations:
         reply_body = f"❌ **SentraAI: Authorization Warning**\nSorry @{actor}, only users with write/admin access (`OWNER`, `MEMBER`, or `COLLABORATOR` association) are permitted to authorize security remediations. Your command was ignored."
@@ -278,7 +278,7 @@ async def process_review_comment_webhook(delivery_id: str, payload: Dict[str, An
             parent_created_at = datetime.fromisoformat(parent_created_at_str.replace("Z", "+00:00"))
             age_seconds = (datetime.now(timezone.utc) - parent_created_at).total_seconds()
             
-            from backend.app.config import os as config_os
+            from app.config import os as config_os
             expiration_hours = int(config_os.getenv("SENTRA_APPROVAL_EXPIRATION_HOURS", "24"))
             if age_seconds > expiration_hours * 3600:
                 reply_body = f"❌ **SentraAI: Expiration Error**\nThis security comment has expired. Approvals are only valid for {expiration_hours} hours to prevent configuration drift."
@@ -306,7 +306,7 @@ async def process_review_comment_webhook(delivery_id: str, payload: Dict[str, An
             logger.warning(f"Failed to parse parent comment created_at '{parent_created_at_str}': {str(ex_err)}")
 
     # Check Command Idempotency
-    from backend.app.services.autofix_service import _build_branch_name
+    from app.services.autofix_service import _build_branch_name
     branch_name = _build_branch_name(rule_id, scan_id)
 
     existing_pr_url = get_existing_autofix_pr(repo_full_name, branch_name)

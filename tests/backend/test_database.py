@@ -8,9 +8,12 @@ import uuid
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+backend_dir = os.path.join(parent_dir, "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
-from backend.app.database.db_client import run_migrations, get_connection, DB_PATH
-from backend.app.database.telemetry_dao import (
+from app.database.db_client import run_migrations, get_connection, DB_PATH
+from app.database.telemetry_dao import (
     register_delivery_id,
     save_scan_telemetry,
     save_suppression_audit,

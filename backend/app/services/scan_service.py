@@ -9,10 +9,10 @@ from scanner_engine.parsers.tf_parser import parse_tf_string, ParseError
 from scanner_engine.parsers.ignore_parser import parse_ignore_annotations
 from scanner_engine.rule_registry import registry
 from remediation_engine.remediation_registry import remediation_registry
-from backend.app.services.github_service import GitProvider
-from backend.app.database.telemetry_dao import save_scan_telemetry, save_suppression_audit
+from app.services.github_service import GitProvider
+from app.database.telemetry_dao import save_scan_telemetry, save_suppression_audit
 from remediation_engine.autofix_policy import get_autofix_policy
-from backend.app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS, SENTRA_REMEDIATION_MODE, RemediationMode
+from app.config import MAX_FILE_SIZE_BYTES, MAX_PR_FILES, SCAN_TIMEOUT_SECONDS, SENTRA_REMEDIATION_MODE, RemediationMode
 
 logger = logging.getLogger("sentra-ai")
 

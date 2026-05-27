@@ -10,13 +10,16 @@ import pytest
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+backend_dir = os.path.join(parent_dir, "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
-from backend.app.main import app
-from backend.app.security.signature_validator import verify_signature
+from app.main import app
+from app.security.signature_validator import verify_signature
 from fastapi.testclient import TestClient
-from backend.app.database.db_client import run_migrations, get_connection
-from backend.app.database.telemetry_dao import save_autofix_pr_record
-from backend.app.services.autofix_service import _build_branch_name
+from app.database.db_client import run_migrations, get_connection
+from app.database.telemetry_dao import save_autofix_pr_record
+from app.services.autofix_service import _build_branch_name
 from scanner_engine.parsers.tf_parser import parse_tf_string
 from scanner_engine.rule_registry import registry
 from remediation_engine.remediation_registry import remediation_registry
@@ -56,7 +59,7 @@ def _extract_reply_body(mock_call) -> str:
     return kwargs.get("body") or (args[3] if len(args) > 3 else "")
 
 
-@patch("backend.app.services.webhook_service.GitHubProvider")
+@patch("app.services.webhook_service.GitHubProvider")
 def test_unauthorized_user_approval_flow(mock_provider_class):
     """
     Tests that if a comment is created by an unauthorized user (association = NONE),
@@ -114,7 +117,7 @@ def test_unauthorized_user_approval_flow(mock_provider_class):
         conn.close()
 
 
-@patch("backend.app.services.webhook_service.GitHubProvider")
+@patch("app.services.webhook_service.GitHubProvider")
 def test_successful_approval_flow(mock_provider_class):
     """
     Tests that a valid approval by an authorized collaborator:
@@ -203,7 +206,7 @@ def test_successful_approval_flow(mock_provider_class):
         conn.close()
 
 
-@patch("backend.app.services.webhook_service.GitHubProvider")
+@patch("app.services.webhook_service.GitHubProvider")
 def test_drift_detected_approval_flow(mock_provider_class):
     """
     Tests that if the code has drifted and the generated remediation diff does not match
@@ -279,7 +282,7 @@ def test_drift_detected_approval_flow(mock_provider_class):
         conn.close()
 
 
-@patch("backend.app.services.webhook_service.GitHubProvider")
+@patch("app.services.webhook_service.GitHubProvider")
 def test_duplicate_pr_approval_flow(mock_provider_class):
     """
     Tests that if a remediation PR has already been created for this finding
@@ -363,7 +366,7 @@ def test_duplicate_pr_approval_flow(mock_provider_class):
         conn.close()
 
 
-@patch("backend.app.services.webhook_service.GitHubProvider")
+@patch("app.services.webhook_service.GitHubProvider")
 def test_expired_approval_flow(mock_provider_class):
     """
     Tests that if the parent security comment was created more than 24 hours ago,

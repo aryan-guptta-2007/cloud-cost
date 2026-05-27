@@ -2,7 +2,7 @@ import hmac
 import hashlib
 from fastapi import Request, HTTPException, Security
 from fastapi.security.api_key import APIKeyHeader
-from backend.app.config import GITHUB_WEBHOOK_SECRET
+from app.config import GITHUB_WEBHOOK_SECRET
 
 signature_header = APIKeyHeader(name="X-Hub-Signature-256", auto_error=False)
 

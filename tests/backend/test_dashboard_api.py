@@ -6,11 +6,14 @@ import pytest
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
+backend_dir = os.path.join(parent_dir, "backend")
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
-from backend.app.main import app
-from backend.app.security.signature_validator import verify_signature
+from app.main import app
+from app.security.signature_validator import verify_signature
 from fastapi.testclient import TestClient
-from backend.app.database.db_client import run_migrations
+from app.database.db_client import run_migrations
 
 # Override signature verification for testing
 app.dependency_overrides[verify_signature] = lambda: None

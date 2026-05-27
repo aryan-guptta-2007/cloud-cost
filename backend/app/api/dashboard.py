@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import Dict, Any, List
-from backend.app.database.db_client import get_connection
+from app.database.db_client import get_connection
 
 router = APIRouter(prefix="/api")
 

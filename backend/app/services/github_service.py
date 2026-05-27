@@ -13,7 +13,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..",
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from backend.app.config import get_private_key, GITHUB_APP_ID
+from app.config import get_private_key, GITHUB_APP_ID
 from shared.constants.comment_signature import COMMENT_SIGNATURE
 
 logger = logging.getLogger("sentra-ai")

@@ -25,15 +25,15 @@ from typing import List, Dict, Any, Optional
 from shared.schemas.finding_schema import Finding
 from remediation_engine.autofix_policy import get_autofix_policy
 from remediation_engine.remediation_registry import remediation_registry
-from backend.app.services.github_service import GitProvider
-from backend.app.services.autofix_pr_service import (
+from app.services.github_service import GitProvider
+from app.services.autofix_pr_service import (
     build_autofix_pr_title,
     build_autofix_pr_body,
     build_autofix_commit_message,
     compute_pr_fingerprint,
     compute_source_content_hash,
 )
-from backend.app.database.telemetry_dao import (
+from app.database.telemetry_dao import (
     save_autofix_pr_record,
     check_autofix_cooldown,
 )
