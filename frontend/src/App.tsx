@@ -1,19 +1,18 @@
 import { useState, useEffect } from 'react';
 import AiSecurityVisualizer from './components/AiSecurityVisualizer';
+import LiveRemediationSimulator from './components/LiveRemediationSimulator';
+import FloatingAiAssistant from './components/FloatingAiAssistant';
 import { 
   Shield, 
   GitPullRequest, 
   CheckCircle2, 
   AlertTriangle, 
-  Play, 
-  Terminal, 
   Layers, 
   Database, 
   Lock, 
   RefreshCw, 
   TrendingUp, 
   Sparkles, 
-  Clock, 
   User, 
   ChevronRight, 
   Info, 
@@ -239,13 +238,6 @@ export default function App() {
   // Case Studies state
   const [selectedCaseStudy, setSelectedCaseStudy] = useState<string>("s3");
 
-  // Simulator state
-  const [simStep, setSimStep] = useState<number>(0);
-  const [simActive, setSimActive] = useState<boolean>(false);
-  const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
-  const [typedCommand, setTypedCommand] = useState<string>("");
-  const [isTyping, setIsTyping] = useState<boolean>(false);
-
   // Fetch SQLite live data from local FastAPI backend
   const fetchData = async () => {
     setIsLoading(true);
@@ -282,98 +274,7 @@ export default function App() {
     fetchData();
   }, [activeTab]);
 
-  // Simulator steps handler
-  useEffect(() => {
-    let timer: any;
-    if (simActive) {
-      if (simStep === 0) {
-        setTerminalLogs(["[SYSTEM] Initializing scan payload..."]);
-        timer = setTimeout(() => {
-          setTerminalLogs(prev => [...prev, "[SCANNER] Downloading PR files in-memory...", "[SCANNER] Analyzing HCL syntax..."]);
-          setSimStep(1);
-        }, 1500);
-      } else if (simStep === 1) {
-        timer = setTimeout(() => {
-          setTerminalLogs(prev => [...prev, "[WARNING] Found 1 Critical Alert: AWS_S3_PUBLIC on main.tf", "[SYSTEM] Posting inline PR comment with fix preview..."]);
-        }, 800);
-      } else if (simStep === 2) {
-        // Typing developer command
-        setIsTyping(true);
-        let text = "/approve";
-        let index = 0;
-        const typingTimer = setInterval(() => {
-          if (index < text.length) {
-            setTypedCommand(text.slice(0, index + 1));
-            index++;
-          } else {
-            clearInterval(typingTimer);
-            setIsTyping(false);
-            // Auto advance after typing
-            timer = setTimeout(() => {
-              setSimStep(3);
-            }, 1000);
-          }
-        }, 150);
-      } else if (simStep === 3) {
-        setTerminalLogs([
-          "[GITOPS] Received webhook pull_request_review_comment",
-          "[RBAC] Verifying actor association: 'COLLABORATOR' -> AUTHORIZED",
-          "[HASH] Verifying Dry-run Preview Hash... MATCHED (Anti-drift verified)",
-          "[VALIDATION] Starting 3-Layer Safety Checks..."
-        ]);
-        timer = setTimeout(() => {
-          setTerminalLogs(prev => [...prev, "  -> Layer 1: HCL Syntax Check... PASSED ✅"]);
-          timer = setTimeout(() => {
-            setTerminalLogs(prev => [...prev, "  -> Layer 2: Terraform CLI Validation... PASSED (Graceful skipped init) ✅"]);
-            timer = setTimeout(() => {
-              setTerminalLogs(prev => [...prev, "  -> Layer 3: AST Resource Boundary Check... PASSED (Zero unintended mutations) ✅"]);
-              timer = setTimeout(() => {
-                setSimStep(4);
-              }, 1000);
-            }, 800);
-          }, 800);
-        }, 800);
-      } else if (simStep === 4) {
-        setTerminalLogs(prev => [
-          ...prev,
-          "[BRANCH] Creating secure branch sentraai/fix/aws-s3-public-demo...",
-          "[COMMIT] Committing patch: main.tf (acl changed public-read -> private)..."
-        ]);
-        timer = setTimeout(() => {
-          setSimStep(5);
-        }, 2000);
-      } else if (simStep === 5) {
-        setTerminalLogs(prev => [
-          ...prev,
-          "[PR] Dispatching GitHub API: Open Pull Request...",
-          "[SUCCESS] Remediation PR opened: #113",
-          "[SYSTEM] Posting approval confirmation to PR review thread!"
-        ]);
-        // Update stats ribbon dynamically for visual impact
-        setStats(prev => ({
-          ...prev,
-          total_autofix_prs: prev.total_autofix_prs + 1,
-          total_gitops_approvals: prev.total_gitops_approvals + 1,
-          estimated_hours_saved: parseFloat((prev.estimated_hours_saved + 0.3).toFixed(1))
-        }));
-        setSimActive(false);
-      }
-    }
-    return () => clearTimeout(timer);
-  }, [simActive, simStep]);
 
-  const resetSimulator = () => {
-    setSimStep(0);
-    setSimActive(false);
-    setTerminalLogs([]);
-    setTypedCommand("");
-    setIsTyping(false);
-  };
-
-  const startSimulator = () => {
-    resetSimulator();
-    setSimActive(true);
-  };
 
   return (
     <div className="app-container">
@@ -524,206 +425,7 @@ export default function App() {
             </section>
 
             {/* Interactive Demo Simulator Section */}
-            <section className="demo-section" id="demo-section">
-              <div className="section-header">
-                <h2>Experience Governed Remediation</h2>
-                <p>See how SentraAI bridges the gap between static analysis alerts and automated safe refactoring directly inside GitHub.</p>
-              </div>
-
-              <div className="demo-frame">
-                {/* Left side: Step controller and status */}
-                <div className="demo-controls">
-                  <div className="demo-steps">
-                    <div className={`demo-step ${simStep === 0 ? 'active' : ''}`}>
-                      <div className="demo-step-num">1</div>
-                      <div className="demo-step-content">
-                        <h4>Commit Vulnerable IaC</h4>
-                        <p>Developer opens a PR containing insecure infrastructure definition.</p>
-                      </div>
-                    </div>
-                    
-                    <div className={`demo-step ${simStep === 1 ? 'active' : ''}`}>
-                      <div className="demo-step-num">2</div>
-                      <div className="demo-step-content">
-                        <h4>Inline Security Comment</h4>
-                        <p>SentraAI posts a security finding with a recommended patch and a hidden dry-run validation hash.</p>
-                      </div>
-                    </div>
-
-                    <div className={`demo-step ${simStep === 2 ? 'active' : ''}`}>
-                      <div className="demo-step-num">3</div>
-                      <div className="demo-step-content">
-                        <h4>GitOps Developer Approval</h4>
-                        <p>Authorized collaborator replies <code>/approve</code> inside the GitHub review thread.</p>
-                      </div>
-                    </div>
-
-                    <div className={`demo-step ${simStep === 3 || simStep === 4 ? 'active' : ''}`}>
-                      <div className="demo-step-num">4</div>
-                      <div className="demo-step-content">
-                        <h4>3-Layer Verification Check</h4>
-                        <p>Runs HCL syntax, CLI validate, and AST resource boundary safety constraints.</p>
-                      </div>
-                    </div>
-
-                    <div className={`demo-step ${simStep === 5 ? 'active' : ''}`}>
-                      <div className="demo-step-num">5</div>
-                      <div className="demo-step-content">
-                        <h4>Remediation PR Opened</h4>
-                        <p>Creates branch, commits secure file content, opens PR, and replies to the thread.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                    <button className="btn btn-primary" onClick={startSimulator} disabled={simActive}>
-                      <Play size={14} /> {simStep > 0 ? "Re-run Demo" : "Start Demo Simulator"}
-                    </button>
-                    {simStep === 1 && (
-                      <button className="btn btn-secondary" style={{ borderColor: 'var(--success-border)', color: 'var(--success)' }} onClick={() => setSimStep(2)}>
-                        Reply `/approve` <ChevronRight size={14} />
-                      </button>
-                    )}
-                    {simStep > 0 && (
-                      <button className="btn btn-secondary" onClick={resetSimulator}>
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right side: Interactive Visual Windows */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                  {/* Mock code editor / GitHub view */}
-                  {simStep === 0 && (
-                    <div className="code-container">
-                      <div className="code-header">
-                        <div className="code-dots">
-                          <span className="code-dot red"></span>
-                          <span className="code-dot yellow"></span>
-                          <span className="code-dot green"></span>
-                        </div>
-                        <span>main.tf (PR Branch)</span>
-                      </div>
-                      <pre className="code-body" style={{ color: '#888' }}>
-                        <code>
-                          resource "aws_s3_bucket" "public_bucket" &#123;<br />
-                          &nbsp;&nbsp;bucket = "sentra-data-logs"<br />
-                          <span style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', display: 'block', width: '100%' }}>
-                          -&nbsp;&nbsp;acl    = "public-read"
-                          </span>
-                          &#125;
-                        </code>
-                      </pre>
-                    </div>
-                  )}
-
-                  {simStep === 1 && (
-                    <div className="card" style={{ padding: '1rem', background: '#0e1117', border: '1px solid #30363d' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', borderBottom: '1px solid #21262d', paddingBottom: '0.5rem' }}>
-                        <Shield size={16} style={{ color: '#6366f1' }} />
-                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>SentraAI</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>posted an inline comment on main.tf:L3</span>
-                      </div>
-                      <div style={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
-                        <span className="badge badge-error" style={{ marginBottom: '0.5rem' }}>🚨 CRITICAL Security Finding</span>
-                        <p style={{ margin: '0.35rem 0', fontWeight: 600 }}>Rule: <code>AWS_S3_PUBLIC</code></p>
-                        <p style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Public Internet exposure detected. Restrict ACL to private.</p>
-                        
-                        <div className="code-container" style={{ fontSize: '0.75rem', marginBottom: '0.75rem' }}>
-                          <div className="code-body" style={{ padding: '0.5rem 1rem' }}>
-                            <span style={{ color: '#888' }}>Proposed Fix:</span>
-                            <pre style={{ color: 'var(--success)' }}>
-                              -  acl = "public-read"<br />
-                              +  acl = "private"
-                            </pre>
-                          </div>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                          💡 **Reply with <code>/approve</code>** to automatically open a remediation PR.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {simStep === 2 && (
-                    <div className="card" style={{ padding: '1.25rem', background: '#0e1117', border: '1px solid #30363d' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                        <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifySelf: 'center', color: '#fff', fontSize: '0.7rem', fontWeight: 'bold', justifyContent: 'center' }}>AG</div>
-                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>AryanGupta</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(Collaborator)</span>
-                      </div>
-                      <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '6px', padding: '0.5rem 0.75rem', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}>
-                        <span style={{ borderRight: isTyping ? '2px solid #fff' : 'none', paddingRight: '2px' }}>
-                          {typedCommand || <span style={{ color: 'var(--text-muted)' }}>Write a reply...</span>}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-                        <button className="btn btn-primary" style={{ padding: '0.35rem 0.85rem', fontSize: '0.75rem' }} disabled={isTyping}>
-                          Comment
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {(simStep === 3 || simStep === 4) && (
-                    <div className="code-container" style={{ background: '#08090d' }}>
-                      <div className="code-header">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <Terminal size={12} />
-                          <span>SentraAI Governed Pipeline</span>
-                        </div>
-                      </div>
-                      <div className="code-body" style={{ fontSize: '0.75rem', color: '#38ef7d', minHeight: '140px' }}>
-                        {terminalLogs.map((log, i) => (
-                          <div key={i} style={{ marginBottom: '0.35rem' }}>{log}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {simStep === 5 && (
-                    <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid var(--success)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                        <CheckCircle2 style={{ color: 'var(--success)' }} size={20} />
-                        <h4 style={{ color: '#ffffff' }}>Remediation PR Created Successfully!</h4>
-                      </div>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                        The insecure configurations were refactored. The pipeline verified all trust checks.
-                      </p>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>Branch:</span>
-                          <span style={{ fontFamily: 'monospace' }}>sentraai/fix/aws-s3-public-demo</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>PR Target:</span>
-                          <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>sentra-corp/production-infra/pull/113</span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <span className="badge badge-success">Syntax ✅</span>
-                        <span className="badge badge-success">CLI Validate ✅</span>
-                        <span className="badge badge-success">Boundary ✅</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Terminal log panel status */}
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Clock size={12} /> Expiration: 24h
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Lock size={12} /> RBAC Enforcement Active
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </section>
+            <LiveRemediationSimulator />
 
             {/* Why Trust SentraAI matrix */}
             <section className="trust-section">
@@ -1711,6 +1413,9 @@ EOF
           Configured with 3-Layer Validation, AST Boundary Enforcement, and Preview Hash drift locking.
         </p>
       </footer>
+
+      {/* Persistent Floating AI Assistant Panel */}
+      <FloatingAiAssistant />
     </div>
   );
 }
