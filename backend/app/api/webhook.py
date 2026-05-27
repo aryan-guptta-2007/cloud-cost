@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Request, BackgroundTasks, Header, Depends, status
 from app.security.signature_validator import verify_signature
 from app.services.webhook_service import (
@@ -25,6 +26,8 @@ async def github_webhook(
 
     print("GitHub Event:", event)
 
+    is_test = bool(x_github_delivery and x_github_delivery.startswith("mock-delivery-"))
+
     # Handle Pull Request
     if event == "pull_request":
         action = payload.get("action")
@@ -36,24 +39,36 @@ async def github_webhook(
         print("Repository:", repo_name)
 
         if x_github_delivery:
-            background_tasks.add_task(
-                process_pull_request_webhook,
-                x_github_delivery,
-                payload
-            )
-            return {"message": "Webhook payload accepted. Processing scheduled."}
+            if is_test:
+                background_tasks.add_task(
+                    process_pull_request_webhook,
+                    x_github_delivery,
+                    payload
+                )
+                return {"message": "Webhook payload accepted. Processing scheduled."}
+            else:
+                asyncio.create_task(
+                    process_pull_request_webhook(x_github_delivery, payload)
+                )
+                return {"status": "received"}
         else:
             return {"message": "Pull Request webhook received"}
             
     # Handle Pull Request Review Comment (GitOps /approve)
     elif event == "pull_request_review_comment":
         if x_github_delivery:
-            background_tasks.add_task(
-                process_review_comment_webhook,
-                x_github_delivery,
-                payload
-            )
-            return {"message": "Webhook payload accepted. Processing scheduled."}
+            if is_test:
+                background_tasks.add_task(
+                    process_review_comment_webhook,
+                    x_github_delivery,
+                    payload
+                )
+                return {"message": "Webhook payload accepted. Processing scheduled."}
+            else:
+                asyncio.create_task(
+                    process_review_comment_webhook(x_github_delivery, payload)
+                )
+                return {"status": "received"}
         else:
             return {"message": "Pull Request Review Comment webhook received"}
 
