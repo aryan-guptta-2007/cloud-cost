@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import AiSecurityVisualizer from './components/AiSecurityVisualizer';
 import { 
   Shield, 
   GitPullRequest, 
@@ -428,30 +429,54 @@ export default function App() {
           <div>
             {/* Hero Section */}
             <section className="landing-hero">
-              <div className="hero-tag">
-                <Sparkles size={13} />
-                <span>GitOps-Native Cloud Remediation</span>
+              <div className="hero-content">
+                <div className="hero-tag">
+                  <Sparkles size={13} />
+                  <span>GitOps-Native Cloud Remediation</span>
+                </div>
+                <h1 className="hero-title">
+                  Fix Cloud Security Risks Directly Inside GitHub
+                </h1>
+                <p className="hero-subtitle">
+                  Autonomous remediation that security teams trust and developers love.
+                  SentraAI generates, validates, and commits secure Terraform patches natively inside your PR review threads.
+                </p>
+
+                {/* AI System Status Bar */}
+                <div className="hero-status-panel" style={{ marginBottom: '2rem' }}>
+                  <div className="status-item">
+                    <span className="status-indicator"></span>
+                    <span>AI Remediator: ACTIVE</span>
+                  </div>
+                  <div className="status-item">
+                    <span className="status-indicator" style={{ background: '#3b82f6', boxShadow: '0 0 8px #3b82f6' }}></span>
+                    <span>AST Guard: ENFORCED</span>
+                  </div>
+                  <div className="status-item">
+                    <span className="status-indicator" style={{ background: '#10b981', boxShadow: '0 0 8px #10b981' }}></span>
+                    <span>3-Layer Trust: VERIFIED</span>
+                  </div>
+                </div>
+
+                <div className="hero-actions">
+                  <button className="btn btn-primary" onClick={() => {
+                    setActiveTab('dashboard');
+                    document.documentElement.scrollTop = 0;
+                  }}>
+                    View Live Dashboard <ChevronRight size={16} />
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => {
+                    const demoSection = document.getElementById('demo-section');
+                    if (demoSection) demoSection.scrollIntoView({ behavior: 'smooth' });
+                  }}>
+                    Watch Interactive Demo
+                  </button>
+                </div>
               </div>
-              <h1 className="hero-title">
-                Fix Cloud Security Risks Directly Inside GitHub
-              </h1>
-              <p className="hero-subtitle">
-                Autonomous remediation that security teams trust and developers love.
-                SentraAI generates, validates, and commits secure Terraform patches natively inside your PR review threads.
-              </p>
-              <div className="hero-actions">
-                <button className="btn btn-primary" onClick={() => {
-                  setActiveTab('dashboard');
-                  document.documentElement.scrollTop = 0;
-                }}>
-                  View Live Dashboard <ChevronRight size={16} />
-                </button>
-                <button className="btn btn-secondary" onClick={() => {
-                  const demoSection = document.getElementById('demo-section');
-                  if (demoSection) demoSection.scrollIntoView({ behavior: 'smooth' });
-                }}>
-                  Watch Interactive Demo
-                </button>
+
+              {/* Live Animated AI Security Visualization */}
+              <div className="hero-visualizer-container">
+                <AiSecurityVisualizer />
               </div>
             </section>
 
