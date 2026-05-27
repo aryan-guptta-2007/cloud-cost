@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, 
@@ -121,13 +121,15 @@ const TIMELINE_STEPS = [
   { id: 'resolved', label: 'RESOLVED', desc: 'Merge & Stabilize' }
 ];
 
-export default function LiveRemediationSimulator() {
+interface LiveRemediationSimulatorProps {
+  simState: string;
+  setSimState: (state: string) => void;
+}
+
+export default function LiveRemediationSimulator({ simState, setSimState }: LiveRemediationSimulatorProps) {
   const [activeTab, setActiveTab] = useState<string>('s3');
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [customCode, setCustomCode] = useState<string>('');
-  
-  // Simulation Flow States: 'idle' | 'scanning' | 'highlighted' | 'expand' | 'ast_isolation' | 'remediating' | 'remediated' | 'pr_opened' | 'pr_approved' | 'pr_merged'
-  const [simState, setSimState] = useState<string>('idle');
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [inputVal, setInputVal] = useState<string>('');
 
@@ -159,6 +161,17 @@ export default function LiveRemediationSimulator() {
 
   const currentStepIdx = getTimelineStepIndex(simState);
 
+  // Parent State Synchronizer Effect (Event-driven React patterns)
+  useEffect(() => {
+    if (simState === 'scanning' && terminalLogs.length === 0) {
+      startSimulator();
+    } else if (simState === 'pr_approved' && terminalLogs.length > 0 && !terminalLogs[terminalLogs.length - 1].includes('SECURED')) {
+      runMergeSequence();
+    } else if (simState === 'idle') {
+      setTerminalLogs([]);
+    }
+  }, [simState]);
+
   const getSourceCode = () => {
     if (isCustomMode) return customCode;
     return currentScenario.code;
@@ -178,7 +191,6 @@ export default function LiveRemediationSimulator() {
   };
 
   const startSimulator = async () => {
-    setSimState('scanning');
     setTerminalLogs([
       '[SYSTEM] Initializing scan pipeline...',
       '[SCANNER] Parsing HCL text block in-memory...',
@@ -206,19 +218,20 @@ export default function LiveRemediationSimulator() {
       '👉 Assessing attack pathways & downstream propagation...'
     ]);
 
-    // Stage 2: EXPAND (Assess threat path)
-    await new Promise(r => setTimeout(r, 1200));
+    // Stage 2: EXPAND (Explicit threat consequences logs)
+    await new Promise(r => setTimeout(r, 1400));
     setSimState('expand');
     setTerminalLogs(prev => [
       ...prev,
       '[SCANNER] Evaluating infrastructure network pathways...',
       `[ALERT] Potential attack path discovered: [Public Internet] -> [${isCustomMode ? 'custom_bucket' : currentScenario.id}] -> [aws_db_instance.prod]`,
-      '⚠️ Downstream block storage breach vector active.',
+      '🚨 Threat Consequence: Vulnerability exposes database storage instance prod.',
+      '🚨 Threat Exposure: 24,500 customer identity records threatened at block level.',
       '👉 Isolating AST resource boundaries...'
     ]);
 
-    // Stage 3: ISOLATE (Isolate AST node)
-    await new Promise(r => setTimeout(r, 1200));
+    // Stage 3: ISOLATE
+    await new Promise(r => setTimeout(r, 1400));
     setSimState('ast_isolation');
     setTerminalLogs(prev => [
       ...prev,
@@ -240,8 +253,8 @@ export default function LiveRemediationSimulator() {
       return;
     }
 
-    // Stage 4: SYNTHESIZE (Generate HCL patch)
-    await new Promise(r => setTimeout(r, 1500));
+    // Stage 4: SYNTHESIZE
+    await new Promise(r => setTimeout(r, 1600));
     setSimState('remediating');
     setTerminalLogs(prev => [
       ...prev,
@@ -250,8 +263,8 @@ export default function LiveRemediationSimulator() {
       '👉 Dispatching to 3-Layer Validation checks...'
     ]);
 
-    // Stage 5: POLICY (Run 3-Layer checks)
-    await new Promise(r => setTimeout(r, 1500));
+    // Stage 5: POLICY
+    await new Promise(r => setTimeout(r, 1600));
     setSimState('remediated');
     setTerminalLogs(prev => [
       ...prev,
@@ -265,7 +278,7 @@ export default function LiveRemediationSimulator() {
   };
 
   const openPR = async () => {
-    // Stage 6: REVIEW (Open GitOps PR)
+    // Stage 6: REVIEW
     setSimState('pr_opened');
     setTerminalLogs(prev => [
       ...prev,
@@ -280,9 +293,11 @@ export default function LiveRemediationSimulator() {
     e.preventDefault();
     if (inputVal.trim().toLowerCase() !== '/approve') return;
     setInputVal('');
-    
-    // Stage 7: AUTHORIZE (Human Approval)
     setSimState('pr_approved');
+  };
+
+  const runMergeSequence = async () => {
+    // Stage 7: AUTHORIZE
     setTerminalLogs(prev => [
       ...prev,
       '[GITOPS] Received comment reply: "/approve"',
@@ -291,8 +306,8 @@ export default function LiveRemediationSimulator() {
       '[MUTATION] Validation checks verified. Dispatching Git Merge API...'
     ]);
 
-    // Stage 8: RESOLVED (Merge & Stabilize)
-    await new Promise(r => setTimeout(r, 1500));
+    // Stage 8: RESOLVED
+    await new Promise(r => setTimeout(r, 1800));
     setSimState('pr_merged');
     setTerminalLogs(prev => [
       ...prev,
@@ -305,7 +320,6 @@ export default function LiveRemediationSimulator() {
     setIsCustomMode(false);
     setActiveTab(id);
     setSimState('idle');
-    setTerminalLogs([]);
   };
 
   const handleCustomModeEnable = () => {
@@ -316,7 +330,6 @@ export default function LiveRemediationSimulator() {
   acl    = "public-read"
 }`);
     setSimState('idle');
-    setTerminalLogs([]);
   };
 
   return (
@@ -402,6 +415,7 @@ export default function LiveRemediationSimulator() {
                 onClick={() => handleScenarioChange(s.id)}
                 className={`btn ${!isCustomMode && activeTab === s.id ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem' }}
+                disabled={simState !== 'idle' && simState !== 'pr_merged'}
               >
                 {s.name}
               </button>
@@ -410,6 +424,7 @@ export default function LiveRemediationSimulator() {
               onClick={handleCustomModeEnable}
               className={`btn ${isCustomMode ? 'btn-primary' : 'btn-secondary'}`}
               style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem', background: isCustomMode ? 'var(--primary-gradient)' : 'rgba(255,255,255,0.02)' }}
+              disabled={simState !== 'idle' && simState !== 'pr_merged'}
             >
               Custom HCL Input
             </button>
@@ -483,13 +498,13 @@ export default function LiveRemediationSimulator() {
 
             {simState === 'remediated' && (
               <button onClick={openPR} className="btn btn-primary" style={{ flex: 1, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
-                <GitPullRequest size={14} /> Open Remediation Pull Request
+                <GitPullRequest size={14} /> Open PR
               </button>
             )}
 
             {simState !== 'idle' && simState !== 'remediated' && (
               <button 
-                onClick={() => { setSimState('idle'); setTerminalLogs([]); }} 
+                onClick={() => { setSimState('idle'); }} 
                 className="btn btn-secondary" 
                 style={{ flex: 1 }}
                 disabled={simState === 'scanning' || simState === 'expand' || simState === 'remediating' || simState === 'pr_approved'}
@@ -522,7 +537,7 @@ export default function LiveRemediationSimulator() {
                   <div 
                     key={i} 
                     className={`terminal-log-line ${
-                      log.includes('🔴') || log.includes('[ALERT]') ? 'alert' :
+                      log.includes('🔴') || log.includes('[ALERT]') || log.includes('🚨') ? 'alert' :
                       log.includes('⚠️') || log.includes('[WARNING]') ? 'warning' :
                       log.includes('✅') || log.includes('[SUCCESS]') ? 'success' :
                       log.includes('[MUTATION]') || log.includes('[AST]') ? 'mutation' : ''
@@ -565,13 +580,13 @@ export default function LiveRemediationSimulator() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 className="holographic-card"
-                style={{ borderLeft: '4px solid var(--warning)' }}
+                style={{ borderLeft: '4px solid var(--error)' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <AlertTriangle size={20} style={{ color: 'var(--warning)' }} />
+                  <AlertTriangle size={20} style={{ color: 'var(--error)' }} />
                   <div>
-                    <h4 style={{ fontSize: '0.85rem' }}>Evaluating Downstream Threat Path...</h4>
-                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Identifying cloud nodes impacted by this vulnerability exposure.</p>
+                    <h4 style={{ fontSize: '0.85rem', color: 'var(--error)' }}>Consequence Warning: exposed credentials</h4>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Exposure endangers database prod (24,500 customer records at risk).</p>
                   </div>
                 </div>
               </motion.div>

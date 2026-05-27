@@ -42,6 +42,11 @@ interface AmbientNode {
   activeType: 'faint' | 'semi' | 'critical';
 }
 
+interface AiSecurityVisualizerProps {
+  simState: string;
+  setSimState: (state: string) => void;
+}
+
 // Generate 45 ambient background nodes
 const ambientNodesList: AmbientNode[] = [];
 for (let i = 0; i < 45; i++) {
@@ -72,7 +77,7 @@ for (let i = 0; i < 45; i++) {
   });
 }
 
-export default function AiSecurityVisualizer() {
+export default function AiSecurityVisualizer({ simState, setSimState }: AiSecurityVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [animStatus, setAnimStatus] = useState<'idle' | 'scanning' | 'alert' | 'approved' | 'remediating' | 'secured'>('idle');
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
@@ -96,6 +101,17 @@ export default function AiSecurityVisualizer() {
   ]);
 
   const ambientNodes = useRef<AmbientNode[]>(ambientNodesList);
+
+  // Sync internal animStatus with lifted simState prop
+  useEffect(() => {
+    if (simState === 'idle') setAnimStatus('idle');
+    else if (simState === 'scanning') setAnimStatus('scanning');
+    else if (simState === 'highlighted' || simState === 'expand' || simState === 'ast_isolation') setAnimStatus('alert');
+    else if (simState === 'remediating' || simState === 'remediated') setAnimStatus('remediating');
+    else if (simState === 'pr_opened') setAnimStatus('approved');
+    else if (simState === 'pr_approved') setAnimStatus('remediating');
+    else if (simState === 'pr_merged') setAnimStatus('secured');
+  }, [simState]);
 
   useEffect(() => {
     let logs: string[] = [];
@@ -180,23 +196,17 @@ export default function AiSecurityVisualizer() {
   }, [animStatus]);
 
   const startSimulation = async () => {
-    if (animStatus !== 'idle' && animStatus !== 'secured') return;
-    setAnimStatus('scanning');
-    await new Promise(r => setTimeout(r, 2200));
-    setAnimStatus('alert');
+    if (simState !== 'idle' && simState !== 'pr_merged') return;
+    setSimState('scanning');
   };
 
   const approveFix = async () => {
-    if (animStatus !== 'alert') return;
-    setAnimStatus('approved');
-    await new Promise(r => setTimeout(r, 1500));
-    setAnimStatus('remediating');
-    await new Promise(r => setTimeout(r, 2500));
-    setAnimStatus('secured');
+    if (simState !== 'pr_opened') return;
+    setSimState('pr_approved');
   };
 
   const resetAll = () => {
-    setAnimStatus('idle');
+    setSimState('idle');
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -205,7 +215,7 @@ export default function AiSecurityVisualizer() {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left - canvas.width / 2;
     const y = e.clientY - rect.top - canvas.height / 2;
-    mouseRef.current.targetX = x * 0.12; // Dynamic parallax skew factor
+    mouseRef.current.targetX = x * 0.12; 
     mouseRef.current.targetY = y * 0.12;
   };
 
@@ -242,11 +252,9 @@ export default function AiSecurityVisualizer() {
     const centerY = canvas.height / 2;
 
     const render = () => {
-      // Deeper black background with trail blur
       ctx.fillStyle = 'rgba(3, 3, 5, 0.22)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Smooth mouse parallax easing
       mouseRef.current.x += (mouseRef.current.targetX - mouseRef.current.x) * 0.06;
       mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.06;
 
@@ -268,7 +276,6 @@ export default function AiSecurityVisualizer() {
         };
       };
 
-      // 1. Draw Multi-Cloud concentric partition rings (AWS, GCP, Azure)
       const cloudRings = [
         { radius: 140, color: 'rgba(99, 102, 241, 0.05)', label: 'AWS VPC' },
         { radius: 210, color: 'rgba(59, 130, 246, 0.03)', label: 'GCP Project' },
@@ -291,15 +298,12 @@ export default function AiSecurityVisualizer() {
         ctx.setLineDash([]);
       });
 
-      // 2. Continuous 3D Ambient Nodes updates & drawing (Infrastructure Scale)
       ambientNodes.current.forEach(an => {
-        // Rotate nodes in background Y
         const cosY = Math.cos(an.speedY);
         const sinY = Math.sin(an.speedY);
         let x1 = an.x3d * cosY - an.z3d * sinY;
         let z1 = an.x3d * sinY + an.z3d * cosY;
 
-        // Rotate nodes X
         const cosX = Math.cos(an.speedX);
         const sinX = Math.sin(an.speedX);
         let y2 = an.y3d * cosX - z1 * sinX;
@@ -324,7 +328,6 @@ export default function AiSecurityVisualizer() {
         ctx.fill();
       });
 
-      // Draw faint connections between close ambient nodes to form background mesh
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.008)';
       ctx.lineWidth = 0.5;
       for (let i = 0; i < ambientNodes.current.length; i += 3) {
@@ -341,7 +344,6 @@ export default function AiSecurityVisualizer() {
         }
       }
 
-      // 3. Continuous 3D Core Node Rotation Calculations
       const cosY = Math.cos(rotationAngleY);
       const sinY = Math.sin(rotationAngleY);
       const cosX = Math.cos(rotationAngleX);
@@ -377,7 +379,6 @@ export default function AiSecurityVisualizer() {
         });
       });
 
-      // 4. Draw Scanning Beam Sweep
       if (animStatus === 'scanning') {
         scanLineY += 3.5;
         if (scanLineY > canvas.height + 40) {
@@ -400,10 +401,8 @@ export default function AiSecurityVisualizer() {
         ctx.stroke();
       }
 
-      // Depth sorting core nodes
       const sortedNodes = [...nodes].sort((a, b) => b.z3d - a.z3d);
 
-      // 5. Draw connections with depth weighting & attack path highlight
       connections.forEach(conn => {
         const fromNode = nodes.find(n => n.id === conn.from);
         const toNode = nodes.find(n => n.id === conn.to);
@@ -421,7 +420,6 @@ export default function AiSecurityVisualizer() {
           strokeColor = `rgba(16, 185, 129, ${0.2 * depthScale})`;
           lineWidth = 1.5 * depthScale;
         } else if ((animStatus === 'alert' || animStatus === 'approved') && (toNode.id === 's3' || toNode.id === 'rds') && fromNode.id === 'core') {
-          // Pulse the vulnerability attack pathway aggressively
           const glowAmp = 0.35 + Math.sin(Date.now() * 0.01) * 0.15;
           strokeColor = `rgba(239, 68, 68, ${glowAmp * depthScale})`;
           lineWidth = 2.2 * depthScale;
@@ -436,10 +434,8 @@ export default function AiSecurityVisualizer() {
         ctx.lineTo(toNode.x2d, toNode.y2d);
         ctx.stroke();
 
-        // 6. Draw glowing orange/red Attack Propagation Vector arrows
         if ((animStatus === 'alert' || animStatus === 'approved') && fromNode.id === 'core' && (toNode.id === 's3' || toNode.id === 'rds')) {
           pulseProgress = (pulseProgress + 0.008) % 1;
-          // Attack moves outward from core to node or vice versa (showing propagation)
           const pX = fromNode.x2d + (toNode.x2d - fromNode.x2d) * pulseProgress;
           const pY = fromNode.y2d + (toNode.y2d - fromNode.y2d) * pulseProgress;
 
@@ -452,7 +448,6 @@ export default function AiSecurityVisualizer() {
           ctx.shadowBlur = 0;
         }
 
-        // Active remediation pulse wave propagating along links
         if (animStatus === 'remediating' && fromNode.id === 'core' && (toNode.id === 's3' || toNode.id === 'rds')) {
           pulseProgress = (pulseProgress + 0.006) % 1;
           const pX = fromNode.x2d + (toNode.x2d - fromNode.x2d) * pulseProgress;
@@ -468,7 +463,6 @@ export default function AiSecurityVisualizer() {
         }
       });
 
-      // Draw and update active particles
       if (Math.random() < 0.12 && (animStatus === 'remediating' || animStatus === 'scanning' || animStatus === 'idle')) {
         const conn = connections[Math.floor(Math.random() * connections.length)];
         const fromNode = nodes.find(n => n.id === conn.from);
@@ -514,7 +508,6 @@ export default function AiSecurityVisualizer() {
         ctx.fill();
       }
 
-      // 7. Draw Nodes based on sorted Z depth
       sortedNodes.forEach(node => {
         ctx.save();
 
@@ -544,7 +537,6 @@ export default function AiSecurityVisualizer() {
         const alpha = Math.min(1, Math.max(0.28, node.scale2d));
         ctx.globalAlpha = alpha;
 
-        // Draw AST Blast Radius Pulsing Sphere
         if ((node.status === 'remediating' || node.status === 'secured' || node.status === 'vulnerable') && node.id !== 'core') {
           const sphereRadius = radius * (1.8 + Math.sin(Date.now() * 0.005) * 0.15);
           const sphereColor = 
@@ -654,7 +646,7 @@ export default function AiSecurityVisualizer() {
 
         {/* Interactive controls */}
         <div className="visualizer-actions">
-          {animStatus === 'idle' && (
+          {simState === 'idle' && (
             <button 
               onClick={startSimulation}
               className="btn btn-primary"
@@ -663,7 +655,7 @@ export default function AiSecurityVisualizer() {
               <Play size={12} /> Trigger Security Scan
             </button>
           )}
-          {animStatus === 'alert' && (
+          {simState === 'pr_opened' && (
             <button 
               onClick={approveFix}
               className="btn btn-primary"
@@ -674,17 +666,17 @@ export default function AiSecurityVisualizer() {
                 boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)'
               }}
             >
-              <GitPullRequest size={12} /> Reply `/approve`
+              <GitPullRequest size={12} /> Approve PR Fix
             </button>
           )}
-          {(animStatus === 'secured' || animStatus === 'scanning' || animStatus === 'approved' || animStatus === 'remediating') && (
+          {(simState === 'pr_merged' || simState === 'scanning' || simState === 'pr_approved' || simState === 'remediating') && (
             <button 
               onClick={resetAll}
               className="btn btn-secondary"
               style={{ padding: '0.35rem 0.85rem', fontSize: '0.75rem' }}
-              disabled={animStatus === 'scanning' || animStatus === 'remediating' || animStatus === 'approved'}
+              disabled={simState === 'scanning' || simState === 'remediating' || simState === 'pr_approved'}
             >
-              <RefreshCw size={12} className={animStatus === 'scanning' || animStatus === 'remediating' ? 'spin' : ''} /> Reset Node State
+              <RefreshCw size={12} className={simState === 'scanning' || simState === 'remediating' ? 'spin' : ''} /> Reset Node State
             </button>
           )}
         </div>
@@ -772,20 +764,31 @@ export default function AiSecurityVisualizer() {
             <span>Live Security Governance Status</span>
           </div>
 
-          <div className="metrics-card-grid">
-            <div className="metric-item">
-              <span className="metric-item-label">Remediation Approval</span>
-              <span className="metric-item-value">
-                {animStatus === 'idle' ? 'STANDBY' :
-                 animStatus === 'scanning' ? 'ANALYZING' :
-                 animStatus === 'alert' ? 'GATED' :
-                 animStatus === 'approved' ? 'VALIDATING' :
-                 animStatus === 'remediating' ? 'MUTATING' : 'COMMITTED'}
+          {/* AI Trust Instrumentation Metrics */}
+          <div className="metrics-card-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+            <div className="metric-item" style={{ padding: '0.4rem' }}>
+              <span className="metric-item-label" style={{ fontSize: '0.5rem' }}>AST Containment</span>
+              <span className="metric-item-value" style={{ fontSize: '0.75rem', color: animStatus === 'idle' ? 'var(--text-muted)' : 'var(--success)' }}>
+                {animStatus === 'idle' ? '0.0%' : '99.8%'}
               </span>
             </div>
-            <div className="metric-item">
-              <span className="metric-item-label">AST Protection Scope</span>
-              <span className="metric-item-value" style={{ color: 'var(--success)' }}>RESTRICTED</span>
+            <div className="metric-item" style={{ padding: '0.4rem' }}>
+              <span className="metric-item-label" style={{ fontSize: '0.5rem' }}>Remediation Trust</span>
+              <span className="metric-item-value" style={{ fontSize: '0.75rem', color: animStatus === 'idle' ? 'var(--text-muted)' : 'var(--success)' }}>
+                {animStatus === 'idle' ? '0.0' : '98.2'}
+              </span>
+            </div>
+            <div className="metric-item" style={{ padding: '0.4rem' }}>
+              <span className="metric-item-label" style={{ fontSize: '0.5rem' }}>Blast Radius</span>
+              <span className="metric-item-value" style={{ fontSize: '0.75rem', color: animStatus === 'alert' ? 'var(--error)' : animStatus === 'idle' ? 'var(--text-muted)' : 'var(--success)' }}>
+                {animStatus === 'idle' ? 'STANDBY' : animStatus === 'alert' ? 'EXPANDING' : '0 SIBLING NODES'}
+              </span>
+            </div>
+            <div className="metric-item" style={{ padding: '0.4rem' }}>
+              <span className="metric-item-label" style={{ fontSize: '0.5rem' }}>Compliance Health</span>
+              <span className="metric-item-value" style={{ fontSize: '0.75rem', color: animStatus === 'alert' ? 'var(--error)' : animStatus === 'idle' ? 'var(--text-muted)' : 'var(--success)' }}>
+                {animStatus === 'idle' ? '100%' : animStatus === 'alert' ? '24% EXPOSED' : '100% SECURE'}
+              </span>
             </div>
           </div>
 
@@ -798,7 +801,7 @@ export default function AiSecurityVisualizer() {
               <span style={{ color: '#a5b4fc' }}>🔍 **Scanning**: AST parser checking code block resource boundaries.</span>
             )}
             {animStatus === 'alert' && (
-              <span style={{ color: '#f87171' }}>🚨 **Awaiting Approval**: Found exposures. Click **Reply `/approve`** to authorize safe commits.</span>
+              <span style={{ color: '#f87171' }}>🚨 **Awaiting Approval**: Found exposures. Click **Approve PR Fix** or comment `/approve` to authorize.</span>
             )}
             {animStatus === 'approved' && (
               <span style={{ color: '#93c5fd' }}>🔑 **Hash Verified**: Authorization signature matched. Running 3-Layer checks.</span>

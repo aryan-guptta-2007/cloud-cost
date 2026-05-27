@@ -218,6 +218,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'landing' | 'case-studies' | 'dashboard' | 'onboarding'>('landing');
   const [isLive, setIsLive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [simState, setSimState] = useState<string>('idle');
   
   // Real or mock data states
   const [stats, setStats] = useState<DashboardStats>(mockStats);
@@ -438,7 +439,7 @@ export default function App() {
 
               {/* Live Animated AI Security Visualization */}
               <div className="hero-visualizer-container">
-                <AiSecurityVisualizer />
+                <AiSecurityVisualizer simState={simState} setSimState={setSimState} />
               </div>
             </section>
 
@@ -486,7 +487,7 @@ export default function App() {
             </section>
 
             {/* Interactive Demo Simulator Section */}
-            <LiveRemediationSimulator />
+            <LiveRemediationSimulator simState={simState} setSimState={setSimState} />
 
             {/* Why Trust SentraAI matrix */}
             <section className="trust-section">
@@ -1476,7 +1477,7 @@ EOF
       </footer>
 
       {/* Persistent Floating AI Assistant Panel */}
-      <FloatingAiAssistant />
+      <FloatingAiAssistant simState={simState} />
     </div>
   );
 }
