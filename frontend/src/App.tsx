@@ -235,6 +235,40 @@ export default function App() {
   const [onboardingMode, setOnboardingMode] = useState<string>("approval_required");
   const [isLoadingWizard, setIsLoadingWizard] = useState<boolean>(false);
 
+  // Simulating continuous live platform activity logs
+  const [telemetryLogs, setTelemetryLogs] = useState<string[]>([
+    '[SYSTEM] Heartbeat: stable (42.4ms latency)',
+    '[RBAC] Policy checked on sentra-corp/production-infra',
+    '[AST] AST isolation verified on aws_s3_bucket.logs'
+  ]);
+
+  useEffect(() => {
+    const events = [
+      'policy-check: OK for s3-static-sites/main.tf',
+      'drift-scanner: No configuration drift detected',
+      'github-webhook: push on branch main verified',
+      'ast-parser: successfully built template tree',
+      'rbac-evaluator: permission check OK for aryan-dev',
+      'remediation-guard: cooldown constraint validated',
+      'drift-scanner: verified state hash matches tfstate',
+      'signature-checker: SHA256 matches preview signature',
+      'autoscan: network-core.tf scanned - 0 warnings'
+    ];
+
+    const interval = setInterval(() => {
+      const randomEvent = events[Math.floor(Math.random() * events.length)];
+      const latency = (Math.random() * 12 + 38).toFixed(1);
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      
+      setTelemetryLogs(prev => {
+        const newLogs = [...prev, `[${timestamp}] ${randomEvent} (latency: ${latency}ms)`];
+        return newLogs.slice(-3); // Keep last 3 items
+      });
+    }, 4500);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Case Studies state
   const [selectedCaseStudy, setSelectedCaseStudy] = useState<string>("s3");
 
@@ -344,7 +378,7 @@ export default function App() {
                 </p>
 
                 {/* AI System Status Bar */}
-                <div className="hero-status-panel" style={{ marginBottom: '2rem' }}>
+                <div className="hero-status-panel" style={{ marginBottom: '1.25rem' }}>
                   <div className="status-item">
                     <span className="status-indicator"></span>
                     <span>AI Remediator: ACTIVE</span>
@@ -356,6 +390,33 @@ export default function App() {
                   <div className="status-item">
                     <span className="status-indicator" style={{ background: '#10b981', boxShadow: '0 0 8px #10b981' }}></span>
                     <span>3-Layer Trust: VERIFIED</span>
+                  </div>
+                </div>
+
+                {/* Live Operations Activity Console */}
+                <div className="code-container" style={{ 
+                  width: '100%', 
+                  maxWidth: '580px', 
+                  fontSize: '0.7rem', 
+                  background: 'rgba(5, 5, 8, 0.85)', 
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  marginBottom: '2rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-muted)', marginBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.3rem' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+                      <span className="status-indicator" style={{ width: '6px', height: '6px', background: 'var(--success)' }}></span>
+                      Live Platform Heartbeat Telemetry
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--text-muted)' }}>Latency: Stable</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontFamily: 'var(--font-mono)', color: '#a5b4fc' }}>
+                    {telemetryLogs.map((log, idx) => (
+                      <div key={idx} style={{ opacity: 1 - (telemetryLogs.length - 1 - idx) * 0.25 }}>
+                        {log}
+                      </div>
+                    ))}
                   </div>
                 </div>
 

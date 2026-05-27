@@ -317,13 +317,13 @@ p {
 /* Landing Page Grid & Elements */
 /* Hero Section - 2-Column Grid Layout */
 .landing-hero {
-  padding: 6rem 2.5rem 4rem 2.5rem;
+  padding: 8rem 2.5rem 6rem 2.5rem;
   max-width: 1400px;
   margin: 0 auto;
   text-align: left;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 3rem;
+  gap: 3.5rem;
   align-items: center;
 }
 
@@ -443,7 +443,7 @@ p {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1.5rem;
   max-width: 1200px;
-  margin: 0 auto 5rem auto;
+  margin: 0 auto 7.5rem auto;
   padding: 0 2.5rem;
 }
 
@@ -468,7 +468,7 @@ p {
 /* Trust / Why Us section */
 .section-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 3.5rem;
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
@@ -481,11 +481,11 @@ p {
 }
 
 .trust-section {
-  padding: 4rem 2.5rem;
+  padding: 5rem 2.5rem;
   background: rgba(255, 255, 255, 0.01);
   border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
-  margin-bottom: 5rem;
+  margin-bottom: 7.5rem;
 }
 
 .trust-grid {
@@ -611,7 +611,7 @@ p {
 .demo-section {
   max-width: 1200px;
   width: 100%;
-  margin: 0 auto 5rem auto;
+  margin: 0 auto 7.5rem auto;
   padding: 0 2.5rem;
 }
 
@@ -1201,7 +1201,7 @@ p {
 /* Live HCL Remediation Simulator Layout */
 .simulator-section {
   max-width: 1400px;
-  margin: 0 auto 5rem auto;
+  margin: 0 auto 7.5rem auto;
   padding: 0 2.5rem;
 }
 

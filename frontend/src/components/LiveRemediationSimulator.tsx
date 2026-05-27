@@ -110,17 +110,54 @@ const PREBUILT_SCENARIOS: PrebuiltScenario[] = [
   }
 ];
 
+const TIMELINE_STEPS = [
+  { id: 'detect', label: 'DETECT', desc: 'Identify vulnerability' },
+  { id: 'expand', label: 'EXPAND', desc: 'Assess threat path' },
+  { id: 'isolate', label: 'ISOLATE', desc: 'Isolate AST node' },
+  { id: 'synthesize', label: 'SYNTHESIZE', desc: 'Generate HCL patch' },
+  { id: 'policy', label: 'POLICY', desc: 'Run 3-Layer checks' },
+  { id: 'review', label: 'REVIEW', desc: 'Open GitOps PR' },
+  { id: 'authorize', label: 'AUTHORIZE', desc: 'Human Approval' },
+  { id: 'resolved', label: 'RESOLVED', desc: 'Merge & Stabilize' }
+];
+
 export default function LiveRemediationSimulator() {
   const [activeTab, setActiveTab] = useState<string>('s3');
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
   const [customCode, setCustomCode] = useState<string>('');
   
-  // Simulation Flow States: 'idle' | 'scanning' | 'highlighted' | 'ast_isolation' | 'remediating' | 'remediated' | 'pr_opened' | 'pr_approved' | 'pr_merged'
+  // Simulation Flow States: 'idle' | 'scanning' | 'highlighted' | 'expand' | 'ast_isolation' | 'remediating' | 'remediated' | 'pr_opened' | 'pr_approved' | 'pr_merged'
   const [simState, setSimState] = useState<string>('idle');
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const [inputVal, setInputVal] = useState<string>('');
 
   const currentScenario = PREBUILT_SCENARIOS.find(s => s.id === activeTab) || PREBUILT_SCENARIOS[0];
+
+  const getTimelineStepIndex = (state: string) => {
+    switch (state) {
+      case 'scanning':
+      case 'highlighted':
+        return 0; // DETECT
+      case 'expand':
+        return 1; // EXPAND
+      case 'ast_isolation':
+        return 2; // ISOLATE
+      case 'remediating':
+        return 3; // SYNTHESIZE
+      case 'remediated':
+        return 4; // POLICY
+      case 'pr_opened':
+        return 5; // REVIEW
+      case 'pr_approved':
+        return 6; // AUTHORIZE
+      case 'pr_merged':
+        return 7; // RESOLVED
+      default:
+        return -1; // IDLE
+    }
+  };
+
+  const currentStepIdx = getTimelineStepIndex(simState);
 
   const getSourceCode = () => {
     if (isCustomMode) return customCode;
@@ -148,7 +185,7 @@ export default function LiveRemediationSimulator() {
       '[SCANNER] Checking rules registry...'
     ]);
 
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 1200));
     setSimState('highlighted');
     
     if (isCustomMode && !customCode.includes('aws_s3_bucket') && !customCode.includes('aws_db_instance')) {
@@ -164,17 +201,30 @@ export default function LiveRemediationSimulator() {
 
     setTerminalLogs(prev => [
       ...prev,
-      isCustomMode ? '[ALERT] Identified vulnerability in custom config.' : `[ALERT] Identified vulnerability: ${currentScenario.rule}`,
-      '👉 Visualizing AST Isolation Bounding Box.'
+      isCustomMode ? '[ALERT] Identified vulnerability in custom config.' : `[ALERT] Identified vulnerability: ${currentScenario.rule} (CRITICAL)`,
+      `  -> Location: ${isCustomMode ? 'custom_config.tf' : currentScenario.findingDetails}`,
+      '👉 Assessing attack pathways & downstream propagation...'
     ]);
 
-    await new Promise(r => setTimeout(r, 1500));
+    // Stage 2: EXPAND (Assess threat path)
+    await new Promise(r => setTimeout(r, 1200));
+    setSimState('expand');
+    setTerminalLogs(prev => [
+      ...prev,
+      '[SCANNER] Evaluating infrastructure network pathways...',
+      `[ALERT] Potential attack path discovered: [Public Internet] -> [${isCustomMode ? 'custom_bucket' : currentScenario.id}] -> [aws_db_instance.prod]`,
+      '⚠️ Downstream block storage breach vector active.',
+      '👉 Isolating AST resource boundaries...'
+    ]);
+
+    // Stage 3: ISOLATE (Isolate AST node)
+    await new Promise(r => setTimeout(r, 1200));
     setSimState('ast_isolation');
     setTerminalLogs(prev => [
       ...prev,
       '[AST] AST Isolation Guard: Isolated resource boundaries.',
-      '  - Outer block variables locked.',
-      '  - Mutation zone defined.',
+      '  - Locked: Sibling configuration variables locked.',
+      '  - Isolated: Attribute mutation zone targeted.',
       '👉 Initiating HCL patch generation...'
     ]);
 
@@ -190,34 +240,39 @@ export default function LiveRemediationSimulator() {
       return;
     }
 
-    await new Promise(r => setTimeout(r, 2000));
+    // Stage 4: SYNTHESIZE (Generate HCL patch)
+    await new Promise(r => setTimeout(r, 1500));
     setSimState('remediating');
     setTerminalLogs(prev => [
       ...prev,
       '[AI] Synthesizing remediation HCL block...',
-      '[VALIDATION] Initiating 3-Layer checks:',
-      '  -> Layer 1: HCL Syntax... PASSED ✅',
-      '  -> Layer 2: CLI Validate... PASSED ✅',
-      '  -> Layer 3: AST Boundary... PASSED ✅'
+      '[AI] Code patch refactoring complete.',
+      '👉 Dispatching to 3-Layer Validation checks...'
     ]);
 
-    await new Promise(r => setTimeout(r, 2000));
+    // Stage 5: POLICY (Run 3-Layer checks)
+    await new Promise(r => setTimeout(r, 1500));
     setSimState('remediated');
     setTerminalLogs(prev => [
       ...prev,
-      '[MUTATION] Code patch prepared and signed.',
-      '[MUTATION] Branch generated successfully.',
-      '👉 Ready to open Remediation Pull Request.'
+      '[VALIDATION] Initiating 3-Layer checks:',
+      '  -> Layer 1: HCL Syntax... PASSED ✅',
+      '  -> Layer 2: CLI Validate... PASSED ✅',
+      '  -> Layer 3: AST Boundary... PASSED ✅',
+      '[MUTATION] Code patch prepared and signed (SHA256 verified).',
+      '👉 Ready to open GitHub Pull Request.'
     ]);
   };
 
   const openPR = async () => {
+    // Stage 6: REVIEW (Open GitOps PR)
     setSimState('pr_opened');
     setTerminalLogs(prev => [
       ...prev,
       '[PR] Dispatching GitHub Pull Request API...',
-      '[PR] Pull Request opened successfully!',
-      '👉 Awaiting developer review / GitOps approve command...'
+      '[PR] Branch sentraai/fix/iac opened on remote.',
+      '[PR] Pull Request #115 opened successfully!',
+      '👉 Awaiting reviewer confirmation & final human authorization...'
     ]);
   };
 
@@ -226,6 +281,7 @@ export default function LiveRemediationSimulator() {
     if (inputVal.trim().toLowerCase() !== '/approve') return;
     setInputVal('');
     
+    // Stage 7: AUTHORIZE (Human Approval)
     setSimState('pr_approved');
     setTerminalLogs(prev => [
       ...prev,
@@ -235,11 +291,12 @@ export default function LiveRemediationSimulator() {
       '[MUTATION] Validation checks verified. Dispatching Git Merge API...'
     ]);
 
-    await new Promise(r => setTimeout(r, 2000));
+    // Stage 8: RESOLVED (Merge & Stabilize)
+    await new Promise(r => setTimeout(r, 1500));
     setSimState('pr_merged');
     setTerminalLogs(prev => [
       ...prev,
-      '[SUCCESS] Pull Request merged into default branch main.',
+      '[SUCCESS] Pull Request #115 merged into main branch.',
       '[SYSTEM] SentraAI: Cloud state is SECURED. Operational standby.'
     ]);
   };
@@ -276,6 +333,65 @@ export default function LiveRemediationSimulator() {
       </div>
 
       <div className="simulator-frame">
+        {/* Step-by-Step Threat Storytelling Timeline HUD */}
+        <div style={{ 
+          gridColumn: '1 / -1', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          background: 'rgba(3, 3, 4, 0.6)', 
+          border: '1px solid rgba(255, 255, 255, 0.05)', 
+          borderRadius: '12px', 
+          padding: '1rem 1.5rem', 
+          marginBottom: '0.5rem',
+          overflowX: 'auto',
+          gap: '1rem',
+          backdropFilter: 'blur(8px)'
+        }}>
+          {TIMELINE_STEPS.map((step, idx) => {
+            const isActive = currentStepIdx === idx;
+            const isCompleted = currentStepIdx > idx;
+            return (
+              <div key={step.id} style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                flex: 1, 
+                minWidth: '90px',
+                opacity: isActive ? 1 : isCompleted ? 0.75 : 0.25,
+                transition: 'all 0.3s ease'
+              }}>
+                <div style={{ 
+                  width: '26px', 
+                  height: '26px', 
+                  borderRadius: '50%', 
+                  background: isActive ? 'var(--primary)' : isCompleted ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                  border: `2px solid ${isActive ? 'var(--primary)' : isCompleted ? 'var(--success)' : 'rgba(255,255,255,0.12)'}`,
+                  color: isActive ? '#fff' : isCompleted ? 'var(--success)' : 'var(--text-muted)',
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  fontSize: '0.7rem',
+                  fontWeight: '700',
+                  boxShadow: isActive ? '0 0 15px rgba(99, 102, 241, 0.5)' : 'none'
+                }}>
+                  {isCompleted ? '✓' : idx + 1}
+                </div>
+                <span style={{ 
+                  fontSize: '0.65rem', 
+                  fontWeight: isActive ? 700 : 500, 
+                  color: isActive ? '#fff' : isCompleted ? 'var(--success)' : 'var(--text-muted)',
+                  marginTop: '0.4rem',
+                  letterSpacing: '0.03em',
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Left Side: Code Editor HUD */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {/* Tabs header */}
@@ -376,7 +492,7 @@ export default function LiveRemediationSimulator() {
                 onClick={() => { setSimState('idle'); setTerminalLogs([]); }} 
                 className="btn btn-secondary" 
                 style={{ flex: 1 }}
-                disabled={simState === 'scanning' || simState === 'remediating' || simState === 'pr_approved'}
+                disabled={simState === 'scanning' || simState === 'expand' || simState === 'remediating' || simState === 'pr_approved'}
               >
                 Reset Simulator
               </button>
@@ -400,16 +516,16 @@ export default function LiveRemediationSimulator() {
                 <span className="terminal-header-dot"></span>
               </div>
             </div>
-            <div className="terminal-logs-content">
+            <div className="terminal-logs-content" style={{ maxHeight: '200px', overflowY: 'auto' }}>
               {terminalLogs.length > 0 ? (
                 terminalLogs.map((log, i) => (
                   <div 
                     key={i} 
                     className={`terminal-log-line ${
                       log.includes('🔴') || log.includes('[ALERT]') ? 'alert' :
-                      log.includes('🟡') ? 'warning' :
+                      log.includes('⚠️') || log.includes('[WARNING]') ? 'warning' :
                       log.includes('✅') || log.includes('[SUCCESS]') ? 'success' :
-                      log.includes('[MUTATION]') ? 'mutation' : ''
+                      log.includes('[MUTATION]') || log.includes('[AST]') ? 'mutation' : ''
                     }`}
                   >
                     {log}
@@ -442,7 +558,26 @@ export default function LiveRemediationSimulator() {
               </motion.div>
             )}
 
-            {/* 2. Vulnerability Highlighted State */}
+            {/* 2. Downstream Expand path */}
+            {simState === 'expand' && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="holographic-card"
+                style={{ borderLeft: '4px solid var(--warning)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <AlertTriangle size={20} style={{ color: 'var(--warning)' }} />
+                  <div>
+                    <h4 style={{ fontSize: '0.85rem' }}>Evaluating Downstream Threat Path...</h4>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Identifying cloud nodes impacted by this vulnerability exposure.</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* 3. Vulnerability Highlighted State */}
             {simState === 'highlighted' && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -461,7 +596,7 @@ export default function LiveRemediationSimulator() {
               </motion.div>
             )}
 
-            {/* 3. AST Isolation verification */}
+            {/* 4. AST Isolation verification */}
             {simState === 'ast_isolation' && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -496,7 +631,7 @@ export default function LiveRemediationSimulator() {
               </motion.div>
             )}
 
-            {/* 4. Patch diff generated */}
+            {/* 5. Patch diff generated */}
             {simState === 'remediating' && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -519,14 +654,14 @@ export default function LiveRemediationSimulator() {
               </motion.div>
             )}
 
-            {/* 5. PR Opened / GitOps approval flow input */}
+            {/* 6. PR Opened / GitOps approval flow input (Collaborative comments) */}
             {(simState === 'pr_opened' || simState === 'pr_approved' || simState === 'pr_merged') && (
               <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 className="card"
-                style={{ padding: '1rem', border: '1px solid rgba(99, 102, 241, 0.25)', background: 'rgba(8, 8, 12, 0.9)' }}
+                style={{ padding: '1rem', border: '1px solid rgba(99, 102, 241, 0.25)', background: 'rgba(8, 8, 12, 0.95)' }}
               >
                 <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -538,10 +673,53 @@ export default function LiveRemediationSimulator() {
                   </span>
                 </div>
 
+                {/* Team Collaboration Comment Logs */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.75rem' }}>
+                  
+                  {/* Reviewers Badge Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.6rem' }}>
+                    <span style={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Reviewers:</span>
+                    <span className="badge badge-success" style={{ fontSize: '0.55rem', padding: '0.1rem 0.3rem' }}>Compliance Bot: APPROVED ✅</span>
+                    <span className="badge badge-success" style={{ fontSize: '0.55rem', padding: '0.1rem 0.3rem' }}>SecOps Sarah: APPROVED ✅</span>
+                  </div>
+
+                  {/* Comment 1: AI Compliance Bot */}
+                  <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '6px', padding: '0.5rem' }}>
+                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                      AI
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.65rem', marginBottom: '0.15rem' }}>
+                        <span style={{ fontWeight: 600, color: '#fff' }}>Compliance Bot (AI)</span>
+                        <span style={{ color: 'var(--text-muted)' }}>12:14 PM</span>
+                      </div>
+                      <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.3' }}>
+                        Isolated resource block AST nodes. Sibling configuration parameters are locked. Blast-radius containment check: <strong>SAFE</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Comment 2: SecOps Lead Sarah */}
+                  <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '6px', padding: '0.5rem' }}>
+                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--success)', fontSize: '0.6rem', fontWeight: 'bold' }}>
+                      SL
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.65rem', marginBottom: '0.15rem' }}>
+                        <span style={{ fontWeight: 600, color: '#fff' }}>Sarah (SecOps Lead)</span>
+                        <span style={{ color: 'var(--text-muted)' }}>12:15 PM</span>
+                      </div>
+                      <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.3' }}>
+                        AST boundary refactor diff looks clean. No unintended side effects found. Awaiting developer approval command.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {simState === 'pr_opened' && (
                   <form onSubmit={handleApproveCommand} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-                      🔑 Type <code>/approve</code> in the PR comment thread below to merge the remediation patch securely.
+                      🔑 Type <code>/approve</code> in the comments below to merge the remediation patch.
                     </p>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <input 

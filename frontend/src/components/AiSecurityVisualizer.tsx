@@ -16,11 +16,9 @@ interface Node3D {
   id: string;
   name: string;
   type: 'core' | 's3' | 'rds' | 'sg' | 'iam';
-  // 3D coordinates relative to center (0,0,0)
   x3d: number;
   y3d: number;
   z3d: number;
-  // Current projected screen coordinates
   x2d: number;
   y2d: number;
   scale2d: number;
@@ -34,19 +32,58 @@ interface Connection {
   status: 'active' | 'warning' | 'remediating' | 'secured';
 }
 
+interface AmbientNode {
+  x3d: number;
+  y3d: number;
+  z3d: number;
+  radius: number;
+  speedY: number;
+  speedX: number;
+  activeType: 'faint' | 'semi' | 'critical';
+}
+
+// Generate 45 ambient background nodes
+const ambientNodesList: AmbientNode[] = [];
+for (let i = 0; i < 45; i++) {
+  const r = 130 + Math.random() * 140;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos((Math.random() * 2) - 1);
+  
+  const x3d = r * Math.sin(phi) * Math.cos(theta);
+  const y3d = r * Math.sin(phi) * Math.sin(theta);
+  const z3d = r * Math.cos(phi);
+
+  const rand = Math.random();
+  let activeType: 'faint' | 'semi' | 'critical' = 'faint';
+  if (rand > 0.95) {
+    activeType = 'critical';
+  } else if (rand > 0.78) {
+    activeType = 'semi';
+  }
+
+  ambientNodesList.push({
+    x3d,
+    y3d,
+    z3d,
+    radius: activeType === 'critical' ? 3.5 : activeType === 'semi' ? 2 : 1.2,
+    speedY: (0.0003 + Math.random() * 0.0004) * (Math.random() > 0.5 ? 1 : -1),
+    speedX: (0.0001 + Math.random() * 0.0003) * (Math.random() > 0.5 ? 1 : -1),
+    activeType
+  });
+}
+
 export default function AiSecurityVisualizer() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [animStatus, setAnimStatus] = useState<'idle' | 'scanning' | 'alert' | 'approved' | 'remediating' | 'secured'>('idle');
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const mouseRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
 
-  // 3D topology nodes positioned in a sphere/orbital layout
   const [nodes, setNodes] = useState<Node3D[]>([
     { id: 'core', name: 'SentraAI Core', type: 'core', x3d: 0, y3d: 0, z3d: 0, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'Remediation Core Active' },
-    { id: 's3', name: 'aws_s3_bucket.logs', type: 's3', x3d: -140, y3d: -90, z3d: -60, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'acl = "public-read"' },
-    { id: 'rds', name: 'aws_db_instance.prod', type: 'rds', x3d: 140, y3d: -80, z3d: 60, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'storage_encrypted = false' },
-    { id: 'sg', name: 'aws_security_group.ssh', type: 'sg', x3d: -110, y3d: 90, z3d: 90, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'cidr_blocks = ["0.0.0.0/0"]' },
-    { id: 'iam', name: 'aws_iam_policy.wildcard', type: 'iam', x3d: 110, y3d: 80, z3d: -90, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'action = "*"' }
+    { id: 's3', name: 'aws_s3_bucket.logs', type: 's3', x3d: -130, y3d: -85, z3d: -55, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'acl = "public-read"' },
+    { id: 'rds', name: 'aws_db_instance.prod', type: 'rds', x3d: 130, y3d: -75, z3d: 55, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'storage_encrypted = false' },
+    { id: 'sg', name: 'aws_security_group.ssh', type: 'sg', x3d: -105, y3d: 85, z3d: 85, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'cidr_blocks = ["0.0.0.0/0"]' },
+    { id: 'iam', name: 'aws_iam_policy.wildcard', type: 'iam', x3d: 105, y3d: 75, z3d: -85, x2d: 0, y2d: 0, scale2d: 1, status: 'clean', details: 'action = "*"' }
   ]);
 
   const [connections] = useState<Connection[]>([
@@ -58,7 +95,8 @@ export default function AiSecurityVisualizer() {
     { from: 'sg', to: 'iam', status: 'active' }
   ]);
 
-  // Terminal logging logic synchronized with states
+  const ambientNodes = useRef<AmbientNode[]>(ambientNodesList);
+
   useEffect(() => {
     let logs: string[] = [];
     if (animStatus === 'idle') {
@@ -117,7 +155,6 @@ export default function AiSecurityVisualizer() {
     setTerminalLogs(logs);
   }, [animStatus]);
 
-  // Update node statuses during states
   useEffect(() => {
     setNodes(prev => prev.map(node => {
       if (animStatus === 'idle' || animStatus === 'scanning') {
@@ -145,16 +182,16 @@ export default function AiSecurityVisualizer() {
   const startSimulation = async () => {
     if (animStatus !== 'idle' && animStatus !== 'secured') return;
     setAnimStatus('scanning');
-    await new Promise(r => setTimeout(r, 2500));
+    await new Promise(r => setTimeout(r, 2200));
     setAnimStatus('alert');
   };
 
   const approveFix = async () => {
     if (animStatus !== 'alert') return;
     setAnimStatus('approved');
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 1500));
     setAnimStatus('remediating');
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise(r => setTimeout(r, 2500));
     setAnimStatus('secured');
   };
 
@@ -162,15 +199,14 @@ export default function AiSecurityVisualizer() {
     setAnimStatus('idle');
   };
 
-  // Mouse hover tracking for 3D parallax
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left - canvas.width / 2;
     const y = e.clientY - rect.top - canvas.height / 2;
-    mouseRef.current.targetX = x * 0.08;
-    mouseRef.current.targetY = y * 0.08;
+    mouseRef.current.targetX = x * 0.12; // Dynamic parallax skew factor
+    mouseRef.current.targetY = y * 0.12;
   };
 
   const handleMouseLeave = () => {
@@ -178,7 +214,6 @@ export default function AiSecurityVisualizer() {
     mouseRef.current.targetY = 0;
   };
 
-  // 3D Orbital Canvas drawing loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -186,11 +221,9 @@ export default function AiSecurityVisualizer() {
     if (!ctx) return;
 
     let animId: number;
-    let angleY = 0.003; // Rotation speed Y
-    let angleX = 0.001; // Rotation speed X
+    let rotationAngleY = 0.0012; 
+    let rotationAngleX = 0.0006; 
     let scanLineY = -50;
-    
-    // Remediation pulse path progress
     let pulseProgress = 0;
 
     const particles: Array<{
@@ -204,70 +237,119 @@ export default function AiSecurityVisualizer() {
       color: string;
     }> = [];
 
-    // Projection constants
-    const perspective = 300;
+    const perspective = 340;
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
 
     const render = () => {
       // Deeper black background with trail blur
-      ctx.fillStyle = 'rgba(2, 2, 5, 0.22)';
+      ctx.fillStyle = 'rgba(3, 3, 5, 0.22)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Smooth mouse parallax easing
-      mouseRef.current.x += (mouseRef.current.targetX - mouseRef.current.x) * 0.08;
-      mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.08;
+      mouseRef.current.x += (mouseRef.current.targetX - mouseRef.current.x) * 0.06;
+      mouseRef.current.y += (mouseRef.current.targetY - mouseRef.current.y) * 0.06;
 
-      // 1. Draw 3D coordinate grid (spatial background topology)
-      ctx.strokeStyle = 'rgba(99, 102, 241, 0.02)';
-      ctx.lineWidth = 1;
-      const spacing = 50;
-      for (let i = -200; i <= 200; i += spacing) {
-        // Horizontal grid lines projected
-        const xStart = i;
-        const xEnd = i;
-        const zStart = -200;
-        const zEnd = 200;
+      const radY = mouseRef.current.x * 0.012;
+      const radX = mouseRef.current.y * 0.012;
 
-        // Apply mouse parallax rotation offsets
-        const radY = mouseRef.current.x * 0.015;
-        const radX = mouseRef.current.y * 0.015;
+      const projectPoint = (x3d: number, y3d: number, z3d: number) => {
+        let xRot = x3d * Math.cos(radY) - z3d * Math.sin(radY);
+        let zRot = x3d * Math.sin(radY) + z3d * Math.cos(radY);
+        let yRot = y3d * Math.cos(radX) - zRot * Math.sin(radX);
+        let zProj = y3d * Math.sin(radX) + zRot * Math.cos(radX);
 
-        const projectPoint = (x3d: number, y3d: number, z3d: number) => {
-          // Rotate around Y
-          let xRot = x3d * Math.cos(radY) - z3d * Math.sin(radY);
-          let zRot = x3d * Math.sin(radY) + z3d * Math.cos(radY);
-          // Rotate around X
-          let yRot = y3d * Math.cos(radX) - zRot * Math.sin(radX);
-          let zProj = y3d * Math.sin(radX) + zRot * Math.cos(radX);
-
-          const scale = perspective / (perspective + zProj + 150);
-          return {
-            x: centerX + xRot * scale,
-            y: centerY + yRot * scale,
-            scale
-          };
+        const scale = perspective / (perspective + zProj + 140);
+        return {
+          x: centerX + xRot * scale,
+          y: centerY + yRot * scale,
+          scale,
+          zProj
         };
+      };
 
-        const pt1 = projectPoint(xStart, 120, zStart);
-        const pt2 = projectPoint(xEnd, 120, zEnd);
+      // 1. Draw Multi-Cloud concentric partition rings (AWS, GCP, Azure)
+      const cloudRings = [
+        { radius: 140, color: 'rgba(99, 102, 241, 0.05)', label: 'AWS VPC' },
+        { radius: 210, color: 'rgba(59, 130, 246, 0.03)', label: 'GCP Project' },
+        { radius: 280, color: 'rgba(16, 185, 129, 0.02)', label: 'Azure Tenant' }
+      ];
 
+      cloudRings.forEach(ring => {
+        ctx.strokeStyle = ring.color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 10]);
         ctx.beginPath();
-        ctx.moveTo(pt1.x, pt1.y);
-        ctx.lineTo(pt2.x, pt2.y);
+        
+        for (let a = 0; a <= Math.PI * 2; a += 0.1) {
+          const pt = projectPoint(ring.radius * Math.cos(a), 40, ring.radius * Math.sin(a));
+          if (a === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.closePath();
         ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // 2. Continuous 3D Ambient Nodes updates & drawing (Infrastructure Scale)
+      ambientNodes.current.forEach(an => {
+        // Rotate nodes in background Y
+        const cosY = Math.cos(an.speedY);
+        const sinY = Math.sin(an.speedY);
+        let x1 = an.x3d * cosY - an.z3d * sinY;
+        let z1 = an.x3d * sinY + an.z3d * cosY;
+
+        // Rotate nodes X
+        const cosX = Math.cos(an.speedX);
+        const sinX = Math.sin(an.speedX);
+        let y2 = an.y3d * cosX - z1 * sinX;
+        let z2 = an.y3d * sinX + z1 * cosX;
+
+        an.x3d = x1;
+        an.y3d = y2;
+        an.z3d = z2;
+
+        const pt = projectPoint(an.x3d, an.y3d, an.z3d);
+
+        let color = 'rgba(255, 255, 255, 0.03)';
+        if (an.activeType === 'semi') {
+          color = 'rgba(99, 102, 241, 0.15)';
+        } else if (an.activeType === 'critical') {
+          color = animStatus === 'alert' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(255, 255, 255, 0.08)';
+        }
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, an.radius * pt.scale, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Draw faint connections between close ambient nodes to form background mesh
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.008)';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < ambientNodes.current.length; i += 3) {
+        const pt1 = projectPoint(ambientNodes.current[i].x3d, ambientNodes.current[i].y3d, ambientNodes.current[i].z3d);
+        for (let j = i + 1; j < Math.min(i + 4, ambientNodes.current.length); j++) {
+          const pt2 = projectPoint(ambientNodes.current[j].x3d, ambientNodes.current[j].y3d, ambientNodes.current[j].z3d);
+          const dist = Math.hypot(pt1.x - pt2.x, pt1.y - pt2.y);
+          if (dist < 80) {
+            ctx.beginPath();
+            ctx.moveTo(pt1.x, pt1.y);
+            ctx.lineTo(pt2.x, pt2.y);
+            ctx.stroke();
+          }
+        }
       }
 
-      // 2. Continuous 3D Node Rotation Calculations
-      const cosY = Math.cos(angleY);
-      const sinY = Math.sin(angleY);
-      const cosX = Math.cos(angleX);
-      const sinX = Math.sin(angleX);
+      // 3. Continuous 3D Core Node Rotation Calculations
+      const cosY = Math.cos(rotationAngleY);
+      const sinY = Math.sin(rotationAngleY);
+      const cosX = Math.cos(rotationAngleX);
+      const sinX = Math.sin(rotationAngleX);
 
       setNodes(prevNodes => {
-        const updated = prevNodes.map(node => {
+        return prevNodes.map(node => {
           if (node.id === 'core') {
-            // Keep AI Core at absolute center (0,0,0)
             return {
               ...node,
               x2d: centerX + mouseRef.current.x,
@@ -276,57 +358,41 @@ export default function AiSecurityVisualizer() {
             };
           }
 
-          // 1. Orbital rotation Y-axis
           let x1 = node.x3d * cosY - node.z3d * sinY;
           let z1 = node.x3d * sinY + node.z3d * cosY;
-
-          // 2. Orbital rotation X-axis
           let y2 = node.y3d * cosX - z1 * sinX;
           let z2 = node.y3d * sinX + z1 * cosX;
 
-          // 3. Easing mouse perspective skew
-          const mouseRadY = mouseRef.current.x * 0.015;
-          const mouseRadX = mouseRef.current.y * 0.015;
-
-          let rx = x1 * Math.cos(mouseRadY) - z2 * Math.sin(mouseRadY);
-          let rz = x1 * Math.sin(mouseRadY) + z2 * Math.cos(mouseRadY);
-          let ry = y2 * Math.cos(mouseRadX) - rz * Math.sin(mouseRadX);
-          let rzFinal = y2 * Math.sin(mouseRadX) + rz * Math.cos(mouseRadX);
-
-          // 3D Perspective Projection Equation
-          const scale = perspective / (perspective + rzFinal + 120);
-          const screenX = centerX + rx * scale;
-          const screenY = centerY + ry * scale;
+          const pt = projectPoint(x1, y2, z2);
 
           return {
             ...node,
             x3d: x1,
             y3d: y2,
             z3d: z2,
-            x2d: screenX,
-            y2d: screenY,
-            scale2d: scale
+            x2d: pt.x,
+            y2d: pt.y,
+            scale2d: pt.scale
           };
         });
-        return updated;
       });
 
-      // 3. Draw Scanning Beam Sweep
+      // 4. Draw Scanning Beam Sweep
       if (animStatus === 'scanning') {
-        scanLineY += 3;
+        scanLineY += 3.5;
         if (scanLineY > canvas.height + 40) {
           scanLineY = -40;
         }
 
         const grad = ctx.createLinearGradient(0, scanLineY - 15, 0, scanLineY + 15);
         grad.addColorStop(0, 'rgba(99, 102, 241, 0)');
-        grad.addColorStop(0.5, 'rgba(99, 102, 241, 0.25)');
+        grad.addColorStop(0.5, 'rgba(99, 102, 241, 0.28)');
         grad.addColorStop(1, 'rgba(99, 102, 241, 0)');
 
         ctx.fillStyle = grad;
         ctx.fillRect(0, scanLineY - 15, canvas.width, 30);
 
-        ctx.strokeStyle = 'rgba(99, 102, 241, 0.65)';
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.75)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(0, scanLineY);
@@ -334,11 +400,10 @@ export default function AiSecurityVisualizer() {
         ctx.stroke();
       }
 
-      // Sort nodes by Z depth so we draw back-to-front (Depth Sorting)
-      // This is crucial for rendering 3D volume occlusion correctly!
+      // Depth sorting core nodes
       const sortedNodes = [...nodes].sort((a, b) => b.z3d - a.z3d);
 
-      // 4. Draw connections with depth weighting
+      // 5. Draw connections with depth weighting & attack path highlight
       connections.forEach(conn => {
         const fromNode = nodes.find(n => n.id === conn.from);
         const toNode = nodes.find(n => n.id === conn.to);
@@ -350,16 +415,18 @@ export default function AiSecurityVisualizer() {
         const depthScale = (fromNode.scale2d + toNode.scale2d) / 2;
 
         if (animStatus === 'remediating' && (toNode.id === 's3' || toNode.id === 'rds') && fromNode.id === 'core') {
-          strokeColor = `rgba(16, 185, 129, ${0.4 * depthScale})`;
-          lineWidth = 2.5 * depthScale;
+          strokeColor = `rgba(16, 185, 129, ${0.45 * depthScale})`;
+          lineWidth = 3 * depthScale;
         } else if (animStatus === 'secured' && (toNode.id === 's3' || toNode.id === 'rds') && fromNode.id === 'core') {
-          strokeColor = `rgba(16, 185, 129, ${0.15 * depthScale})`;
-          lineWidth = 1.2 * depthScale;
-        } else if ((animStatus === 'alert' || animStatus === 'approved') && (toNode.id === 's3' || toNode.id === 'rds') && fromNode.id === 'core') {
-          strokeColor = `rgba(239, 68, 68, ${0.35 * depthScale})`;
+          strokeColor = `rgba(16, 185, 129, ${0.2 * depthScale})`;
           lineWidth = 1.5 * depthScale;
+        } else if ((animStatus === 'alert' || animStatus === 'approved') && (toNode.id === 's3' || toNode.id === 'rds') && fromNode.id === 'core') {
+          // Pulse the vulnerability attack pathway aggressively
+          const glowAmp = 0.35 + Math.sin(Date.now() * 0.01) * 0.15;
+          strokeColor = `rgba(239, 68, 68, ${glowAmp * depthScale})`;
+          lineWidth = 2.2 * depthScale;
         } else {
-          strokeColor = `rgba(255, 255, 255, ${0.05 * depthScale})`;
+          strokeColor = `rgba(255, 255, 255, ${0.06 * depthScale})`;
         }
 
         ctx.strokeStyle = strokeColor;
@@ -369,30 +436,46 @@ export default function AiSecurityVisualizer() {
         ctx.lineTo(toNode.x2d, toNode.y2d);
         ctx.stroke();
 
-        // Animated active remediation pulse wave propagating along links
+        // 6. Draw glowing orange/red Attack Propagation Vector arrows
+        if ((animStatus === 'alert' || animStatus === 'approved') && fromNode.id === 'core' && (toNode.id === 's3' || toNode.id === 'rds')) {
+          pulseProgress = (pulseProgress + 0.008) % 1;
+          // Attack moves outward from core to node or vice versa (showing propagation)
+          const pX = fromNode.x2d + (toNode.x2d - fromNode.x2d) * pulseProgress;
+          const pY = fromNode.y2d + (toNode.y2d - fromNode.y2d) * pulseProgress;
+
+          ctx.fillStyle = '#ef4444';
+          ctx.shadowColor = '#ef4444';
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.arc(pX, pY, 3.5 * depthScale, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        // Active remediation pulse wave propagating along links
         if (animStatus === 'remediating' && fromNode.id === 'core' && (toNode.id === 's3' || toNode.id === 'rds')) {
-          pulseProgress = (pulseProgress + 0.005) % 1;
+          pulseProgress = (pulseProgress + 0.006) % 1;
           const pX = fromNode.x2d + (toNode.x2d - fromNode.x2d) * pulseProgress;
           const pY = fromNode.y2d + (toNode.y2d - fromNode.y2d) * pulseProgress;
 
           ctx.fillStyle = '#10b981';
           ctx.shadowColor = '#10b981';
-          ctx.shadowBlur = 10;
+          ctx.shadowBlur = 12;
           ctx.beginPath();
           ctx.arc(pX, pY, 4 * depthScale, 0, Math.PI * 2);
           ctx.fill();
-          ctx.shadowBlur = 0; // Reset
+          ctx.shadowBlur = 0;
         }
       });
 
-      // 5. Generate particles moving along paths
+      // Draw and update active particles
       if (Math.random() < 0.12 && (animStatus === 'remediating' || animStatus === 'scanning' || animStatus === 'idle')) {
         const conn = connections[Math.floor(Math.random() * connections.length)];
         const fromNode = nodes.find(n => n.id === conn.from);
         const toNode = nodes.find(n => n.id === conn.to);
 
         if (fromNode && toNode) {
-          let pColor = 'rgba(99, 102, 241, 0.5)';
+          let pColor = 'rgba(99, 102, 241, 0.4)';
           if (animStatus === 'remediating' && (toNode.id === 's3' || toNode.id === 'rds')) {
             pColor = '#10b981';
           }
@@ -400,7 +483,7 @@ export default function AiSecurityVisualizer() {
             x: fromNode.x2d,
             y: fromNode.y2d,
             z: fromNode.z3d,
-            speed: 0.008 + Math.random() * 0.012,
+            speed: 0.007 + Math.random() * 0.01,
             progress: 0,
             fromNode: fromNode.id,
             toNode: toNode.id,
@@ -409,7 +492,6 @@ export default function AiSecurityVisualizer() {
         }
       }
 
-      // Draw and update particles
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.progress += p.speed;
@@ -432,7 +514,7 @@ export default function AiSecurityVisualizer() {
         ctx.fill();
       }
 
-      // 6. Draw Nodes based on sorted Z depth (Occlusion Rendering)
+      // 7. Draw Nodes based on sorted Z depth
       sortedNodes.forEach(node => {
         ctx.save();
 
@@ -446,45 +528,67 @@ export default function AiSecurityVisualizer() {
           outerRingSpeed = 0.012;
         } else if (node.status === 'vulnerable') {
           baseColor = '#ef4444';
-          glowColor = 'rgba(239, 68, 68, 0.25)';
+          glowColor = 'rgba(239, 68, 68, 0.22)';
           outerRingSpeed = 0.025;
         } else if (node.status === 'remediating') {
           baseColor = '#3b82f6';
-          glowColor = 'rgba(59, 130, 246, 0.35)';
+          glowColor = 'rgba(59, 130, 246, 0.32)';
           outerRingSpeed = 0.04;
         } else if (node.status === 'secured') {
           baseColor = '#10b981';
-          glowColor = 'rgba(16, 185, 129, 0.25)';
+          glowColor = 'rgba(16, 185, 129, 0.22)';
           outerRingSpeed = 0.008;
         }
 
-        const radius = node.type === 'core' ? 20 * node.scale2d : 12 * node.scale2d;
-
-        // Apply depth-based opacity (Depth Fog / Volumetric Easing)
-        const alpha = Math.min(1, Math.max(0.25, node.scale2d));
+        const radius = node.type === 'core' ? 22 * node.scale2d : 13 * node.scale2d;
+        const alpha = Math.min(1, Math.max(0.28, node.scale2d));
         ctx.globalAlpha = alpha;
 
-        // Bounding volumetric shadow core
+        // Draw AST Blast Radius Pulsing Sphere
+        if ((node.status === 'remediating' || node.status === 'secured' || node.status === 'vulnerable') && node.id !== 'core') {
+          const sphereRadius = radius * (1.8 + Math.sin(Date.now() * 0.005) * 0.15);
+          const sphereColor = 
+            node.status === 'vulnerable' ? 'rgba(239, 68, 68, 0.05)' :
+            node.status === 'remediating' ? 'rgba(59, 130, 246, 0.08)' :
+            'rgba(16, 185, 129, 0.06)';
+          
+          const sphereBorder = 
+            node.status === 'vulnerable' ? 'rgba(239, 68, 68, 0.15)' :
+            node.status === 'remediating' ? 'rgba(59, 130, 246, 0.25)' :
+            'rgba(16, 185, 129, 0.2)';
+
+          ctx.strokeStyle = sphereBorder;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 4]);
+          ctx.beginPath();
+          ctx.arc(node.x2d, node.y2d, sphereRadius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          ctx.fillStyle = sphereColor;
+          ctx.beginPath();
+          ctx.arc(node.x2d, node.y2d, sphereRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
         ctx.shadowColor = baseColor;
-        ctx.shadowBlur = (animStatus === 'remediating' || node.status === 'vulnerable') ? (12 + Math.sin(Date.now() * 0.004) * 4) * node.scale2d : 6 * node.scale2d;
+        ctx.shadowBlur = (animStatus === 'remediating' || node.status === 'vulnerable') ? (14 + Math.sin(Date.now() * 0.005) * 4) * node.scale2d : 6 * node.scale2d;
 
         ctx.fillStyle = glowColor;
         ctx.beginPath();
         ctx.arc(node.x2d, node.y2d, radius + 4, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.shadowBlur = 0; // Reset shadow
+        ctx.shadowBlur = 0;
 
-        // Bounding border rings
         ctx.strokeStyle = baseColor;
-        ctx.lineWidth = 1.5 * node.scale2d;
+        ctx.lineWidth = 1.8 * node.scale2d;
         ctx.beginPath();
         ctx.arc(node.x2d, node.y2d, radius, 0, Math.PI * 2);
         ctx.stroke();
 
-        // Rotating technical arches representing AI thinking states
         if (outerRingSpeed > 0 || node.type === 'core') {
-          const rotationAngle = (Date.now() * (outerRingSpeed || 0.005)) % (Math.PI * 2);
+          const rotationAngle = (Date.now() * (outerRingSpeed || 0.004)) % (Math.PI * 2);
           ctx.strokeStyle = baseColor;
           ctx.lineWidth = 1 * node.scale2d;
 
@@ -497,10 +601,9 @@ export default function AiSecurityVisualizer() {
           ctx.stroke();
         }
 
-        // Draw node center focus dot
         ctx.fillStyle = baseColor;
         ctx.beginPath();
-        ctx.arc(node.x2d, node.y2d, 3.5 * node.scale2d, 0, Math.PI * 2);
+        ctx.arc(node.x2d, node.y2d, 3.8 * node.scale2d, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
@@ -518,7 +621,6 @@ export default function AiSecurityVisualizer() {
 
   return (
     <div className="visualizer-wrapper">
-      {/* Visualization Grid Panel */}
       <div 
         className="visualizer-graph-panel"
         style={{ cursor: 'grab' }}
